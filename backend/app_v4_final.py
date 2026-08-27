@@ -3,11 +3,12 @@
 LEMON ERP - MASTER WORKFLOW - v4.4.8
 BASE: v1.3.py = v4.4.7 Fixed + Masters reordered
 Fixes in v4.4.8:
+- Fixed SyntaxError in res_k and res_sz f-string broken quotes line 310-318
 - Sidebar reorganized: Moved Product Category, Products, SBUs from MAIN to MASTERS in sequence: Product Category first, Products second, SBUs third - to ensure data entry flow Category -> Product -> SBU
 - MAIN now only Dashboard
 - MASTERS order: Product Category, Products, SBUs, Vendors, Customers, Cost, Mobile
 - Everything else 100% unchanged from v1.3.py
-DB: lemon_erp_v44_1_category.db single file
+DB: lemon_erp_v44_1_category.db single file with persistent path
 File: backend/app_v4_final.py
 URL: https://lemon-erp.onrender.com
 """
@@ -18,7 +19,7 @@ from datetime import datetime
 import json, os, re
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'lemon-erp-v44-8-masters-reordered'
+app.config['SECRET_KEY'] = 'lemon-erp-v44-8-fixed-syntax-masters-reordered'
 db_path = os.environ.get('DATABASE_PATH', os.path.join(os.path.dirname(__file__), '..', 'instance', 'lemon_erp_v44_1_category.db'))
 os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
 app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.abspath(db_path)}'
@@ -308,7 +309,7 @@ def sbu_list():
                 except: raw=[]
                 for it in raw:
                     prod=all_prods.get(it.get('product_id'))
-                    pcs.append({'product_id':it.get('product_id'),'product_name':prod.name if prod else f"ID {it.get('product_id")}', 'product_code':prod.product_code if prod else '', 'capacity_per_day': it.get('capacity_per_day') or it.get('capacity') or 0, 'capacity': it.get('capacity_per_day') or 0})
+                    pcs.append({'product_id':it.get('product_id'),'product_name':prod.name if prod else f"ID {it.get('product_id')}", 'product_code':prod.product_code if prod else '', 'capacity_per_day': it.get('capacity_per_day') or it.get('capacity') or 0, 'capacity': it.get('capacity_per_day') or 0})
                 return {'id':k.id,'kiln_no':k.kiln_no,'lining_installation_date':k.lining_installation_date,'lining_date':k.lining_installation_date,'health_status':k.health_status,'products_capacity':pcs,'products_capacity_raw':k.products_capacity}
             def res_sz(sp):
                 try: raw=json.loads(sp.products_capacity) if sp.products_capacity else []
@@ -316,7 +317,7 @@ def sbu_list():
                 pcs=[]
                 for it in raw:
                     prod=all_prods.get(it.get('product_id'))
-                    pcs.append({'product_id':it.get('product_id'),'product_name':prod.name if prod else f"ID {it.get('product_id")}', 'product_code':prod.product_code if prod else '', 'capacity_per_hour':it.get('capacity_per_hour') or it.get('capacity') or 0, 'capacity':it.get('capacity_per_hour') or 0, 'machineries':it.get('machineries','')})
+                    pcs.append({'product_id':it.get('product_id'),'product_name':prod.name if prod else f"ID {it.get('product_id')}", 'product_code':prod.product_code if prod else '', 'capacity_per_hour':it.get('capacity_per_hour') or it.get('capacity') or 0, 'capacity':it.get('capacity_per_hour') or 0, 'machineries':it.get('machineries','')})
                 return {'id':sp.id,'plant_no':sp.plant_no,'products_capacity':pcs,'products_capacity_raw':sp.products_capacity,'machineries':sp.machineries}
             def res_hy(h):
                 try: raw=json.loads(h.products_capacity) if h.products_capacity else []
@@ -512,7 +513,7 @@ input,select,textarea{padding:8px 10px;border-radius:7px;border:1.5px solid var(
 .sbu-card{border:1.5px solid var(--line);border-radius:12px;padding:14px;margin:12px 0;background:white}
 </style></head>
 <body>
-<div class="topnav"><div class="brand">🍋 LEMON <span>ERP</span> v4.4.8 - Masters Reordered Category→Products→SBUs - Base v1.3.py</div><button class="btn btn-y" onclick="location.reload()">Reload</button></div>
+<div class="topnav"><div class="brand">🍋 LEMON <span>ERP</span> v4.4.8 - Fixed Syntax + Masters Reordered - Base v1.3.py</div><button class="btn btn-y" onclick="location.reload()">Reload</button></div>
 <div class="layout">
 <div class="sidebar">
 <h4>MAIN</h4>
@@ -536,9 +537,9 @@ input,select,textarea{padding:8px 10px;border-radius:7px;border:1.5px solid var(
 <div class="content">
 <!-- DASH -->
 <div id="dash" class="tabcontent">
-<div class="card"><h3>Dashboard - v4.4.8 Masters Reordered - Category → Products → SBUs - Base v1.3.py</h3>
+<div class="card"><h3>Dashboard - v4.4.8 Fixed Syntax + Masters Reordered - Base v1.3.py</h3>
 <div class="row"><div class="card kpi"><div>Total Value</div><div class="val" id="totalVal">Rs 0 Lakh</div></div><div class="card kpi"><div>SBUs</div><div class="val" id="sbuCountDash">0</div></div><div class="card kpi"><div>Products</div><div class="val" id="prodCountDash">0</div></div><div class="card kpi"><div>Categories</div><div class="val" id="catCountDash">0</div></div></div>
-<div class="card"><b>v4.4.8 Changes:</b> Sidebar reorganized - MAIN only Dashboard, MASTERS sequence: 1) Product Category 2) Products 3) SBUs 4) Vendors 5) Customers 6) Cost 7) Mobile - Flow: Category → Product → SBU - Everything else unchanged from v1.3.py / v4.4.7 Fixed Tabular</div>
+<div class="card"><b>v4.4.8 Changes:</b> FIXED SyntaxError f-string in res_k/res_sz line 310-318 + Sidebar reorganized MAIN only Dashboard, MASTERS: 1) Product Category 2) Products 3) SBUs 4) Vendors 5) Customers 6) Cost 7) Mobile - Flow Category→Product→SBU - Base v1.3.py</div>
 <div id="alerts"></div>
 </div></div>
 
