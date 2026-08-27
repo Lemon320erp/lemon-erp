@@ -1,7 +1,20 @@
 
 """
-LEMON ERP - MASTER WORKFLOW - v4.4.9
+LEMON ERP - MASTER WORKFLOW - v4.4.10
 BASE: v1.3.py = v4.4.7 Fixed Tabular Duplicate + Vendor Master Enhanced
+Fixes in v4.4.10:
+- ONLY Vendor master enhanced - Added on top of v4.4.9.1 - Nothing removed - No other module changed
+- A. Compliance: MSME Certificate No + Expiry + Upload, GST Registration Type Regular/Composition/Unregistered/SEZ/Deemed Export, TDS Section 194C 194J 194Q 194H 194I etc, Vendor Rating 1-5 stars + Last Audit Date, Document uploads GST Cert PAN Card Cancelled Cheque MSME Cert ISO Cert (base64 storage)
+- B. Opening Balance Dr/Cr for migration + Ledger Group Sundry Creditors etc
+- E. Departments in contacts + Primary contact flag is_primary checkbox
+- F. Created By/At Updated By/At auto + Approval Workflow Draft Pending Approved Rejected + Last Transaction Date + Total Business Value sum of POs (po value = qty*rate)
+- All previous fields kept: VEND-0001, Station, State, GST PAN TAN Legal Status Vendor Category Bank Details single dropdown searchable + Contacts
+- Filters enhanced with Approval Status, Rating
+- List shows new fields in tooltip and badges
+- Bank single dropdown fix kept from v4.4.9.1
+Fixes in v4.4.9.1:
+- Fixed Bank Details form had 2 fields for bank selection - Now single searchable dropdown only - Removed extra select vb_bank_sel - Keep only input list datalist
+- Rest locked to v4.4.9
 Fixes in v4.4.9:
 - ONLY Vendor module changed, rest locked to v4.4.8 FIXED
 - Vendor Master redesigned: Heading + Add New Vendor button top after heading + Filters + Search bar
@@ -26,7 +39,7 @@ from datetime import datetime
 import json, os, re
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'lemon-erp-v44-9-vendor-master-enhanced'
+app.config['SECRET_KEY'] = 'lemon-erp-v44-10-vendor-compliance-docs'
 db_path = os.environ.get('DATABASE_PATH', os.path.join(os.path.dirname(__file__), '..', 'instance', 'lemon_erp_v44_1_category.db'))
 os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
 app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.abspath(db_path)}'
@@ -134,7 +147,7 @@ class Vendor(db.Model):
     legal_status = db.Column(db.String(100))
     vendor_category = db.Column(db.String(100))
     bank_details = db.Column(db.Text)  # JSON list
-    contacts = db.Column(db.Text)  # JSON list
+    contacts = db.Column(db.Text)  # JSON list - now includes department, is_primary
     status = db.Column(db.String(20), default='Active')
     # old compatibility
     type = db.Column(db.String(50))
@@ -142,6 +155,27 @@ class Vendor(db.Model):
     credit_limit = db.Column(db.Float, default=0)
     pending_due = db.Column(db.Float, default=0)
     created_at = db.Column(db.String(30), default=lambda: datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    # v4.4.10 new fields - Compliance
+    msme_cert_no = db.Column(db.String(100), default='')
+    msme_expiry = db.Column(db.String(20), default='')
+    msme_upload = db.Column(db.Text, default='')  # base64 or filename
+    gst_reg_type = db.Column(db.String(50), default='Regular')  # Regular/Composition/Unregistered/SEZ/Deemed Export
+    tds_section = db.Column(db.String(50), default='194C')
+    vendor_rating = db.Column(db.Integer, default=0)  # 1-5 stars
+    last_audit_date = db.Column(db.String(20), default='')
+    # Document uploads JSON: {gst_cert, pan_card, cancelled_cheque, msme_cert, iso_cert} base64
+    documents = db.Column(db.Text, default='{}')
+    # B. Financial migration
+    opening_balance = db.Column(db.Float, default=0)
+    opening_balance_type = db.Column(db.String(10), default='Dr')  # Dr/Cr
+    ledger_group = db.Column(db.String(100), default='Sundry Creditors')
+    # F. Audit & Workflow
+    created_by = db.Column(db.String(100), default='Admin')
+    updated_by = db.Column(db.String(100), default='Admin')
+    updated_at = db.Column(db.String(30), default=lambda: datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    approval_status = db.Column(db.String(20), default='Draft')  # Draft/Pending/Approved/Rejected
+    last_transaction_date = db.Column(db.String(30), default='')
+    total_business_value = db.Column(db.Float, default=0)
 
 class Customer(db.Model):
     __tablename__ = 'customer'
@@ -462,12 +496,17 @@ def vendors_api():
         cat_f=request.args.get('category','')
         status_f=request.args.get('status','')
         state_f=request.args.get('state','')
+        approval_f=request.args.get('approval','')
+        rating_f=request.args.get('rating','')
         vendors=Vendor.query.order_by(Vendor.id.desc()).all()
         result=[]
         for v in vendors:
-            # counts
-            po_count=PO.query.filter((PO.vendor_id==v.id) | (PO.vendor==v.name)).count()
+            po_list=PO.query.filter((PO.vendor_id==v.id) | (PO.vendor==v.name)).all()
+            po_count=len(po_list)
             grn_count=GRN.query.filter((GRN.vendor_id==v.id) | (GRN.vendor==v.name)).count()
+            # calc business value and last transaction
+            total_val=sum([(p.qty or 0)*(p.rate or 0) for p in po_list])
+            last_trans = max([p.created_at for p in po_list if p.created_at], default='') if po_list else v.last_transaction_date
             try:
                 banks=json.loads(v.bank_details) if v.bank_details else []
             except:
@@ -476,24 +515,32 @@ def vendors_api():
                 contacts=json.loads(v.contacts) if v.contacts else []
             except:
                 contacts=[]
-            # filtering
-            if q and not (q in (v.name or '').lower() or q in (v.vendor_code or '').lower() or q in (v.gst_no or '').lower() or q in (v.pan_no or '').lower() or q in (v.station or '').lower() or q in (v.state or '').lower()):
+            try:
+                docs=json.loads(v.documents) if v.documents else {}
+            except:
+                docs={}
+            if q and not (q in (v.name or '').lower() or q in (v.vendor_code or '').lower() or q in (v.gst_no or '').lower() or q in (v.pan_no or '').lower() or q in (v.station or '').lower() or q in (v.state or '').lower() or q in (v.msme_cert_no or '').lower()):
                 continue
             if type_f and v.legal_status!=type_f: continue
             if cat_f and v.vendor_category!=cat_f: continue
             if status_f and v.status!=status_f: continue
             if state_f and v.state!=state_f: continue
+            if approval_f and v.approval_status!=approval_f: continue
+            if rating_f and str(v.vendor_rating)!=str(rating_f): continue
             result.append({
                 'id':v.id,'vendor_code':v.vendor_code,'name':v.name,'station':v.station,'address':v.address,'state':v.state,
                 'gst_no':v.gst_no,'pan_no':v.pan_no,'tan_no':v.tan_no,'legal_status':v.legal_status,'vendor_category':v.vendor_category,
                 'bank_details':banks,'contacts':contacts,'status':v.status,
+                'msme_cert_no':v.msme_cert_no,'msme_expiry':v.msme_expiry,'msme_upload':bool(v.msme_upload),
+                'gst_reg_type':v.gst_reg_type,'tds_section':v.tds_section,'vendor_rating':v.vendor_rating,'last_audit_date':v.last_audit_date,
+                'documents':docs,'has_docs':len(docs)>0,
+                'opening_balance':v.opening_balance,'opening_balance_type':v.opening_balance_type,'ledger_group':v.ledger_group,
+                'created_by':v.created_by,'created_at':v.created_at,'updated_by':v.updated_by,'updated_at':v.updated_at,
+                'approval_status':v.approval_status,'last_transaction_date':last_trans or v.last_transaction_date,'total_business_value':total_val or v.total_business_value,
                 'po_count':po_count,'grn_count':grn_count,
-                'created_at':v.created_at,
-                # compatibility
                 'type':v.legal_status or v.type,'gst':v.gst_no,'contact':contacts[0]['name'] if contacts else ''
             })
         return jsonify(result)
-    # POST
     data=request.get_json() or {}
     name=(data.get('name') or '').strip()
     if not name: return jsonify(error='Vendor Name mandatory'),400
@@ -515,6 +562,20 @@ def vendors_api():
         bank_details=json.dumps(data.get('bank_details',[])),
         contacts=json.dumps(data.get('contacts',[])),
         status=data.get('status','Active'),
+        msme_cert_no=data.get('msme_cert_no',''),
+        msme_expiry=data.get('msme_expiry',''),
+        msme_upload=data.get('msme_upload',''),
+        gst_reg_type=data.get('gst_reg_type','Regular'),
+        tds_section=data.get('tds_section','194C'),
+        vendor_rating=int(data.get('vendor_rating') or 0),
+        last_audit_date=data.get('last_audit_date',''),
+        documents=json.dumps(data.get('documents',{})),
+        opening_balance=float(data.get('opening_balance') or 0),
+        opening_balance_type=data.get('opening_balance_type','Dr'),
+        ledger_group=data.get('ledger_group','Sundry Creditors'),
+        created_by=data.get('created_by','Admin'),
+        updated_by=data.get('created_by','Admin'),
+        approval_status=data.get('approval_status','Draft'),
         type=data.get('legal_status',''),
         contact=data.get('contacts',[{}])[0].get('name','') if data.get('contacts') else ''
     )
@@ -533,9 +594,16 @@ def vendor_one(vid):
             contacts=json.loads(v.contacts) if v.contacts else []
         except:
             contacts=[]
-        po_count=PO.query.filter((PO.vendor_id==v.id) | (PO.vendor==v.name)).count()
+        try:
+            docs=json.loads(v.documents) if v.documents else {}
+        except:
+            docs={}
+        po_list=PO.query.filter((PO.vendor_id==v.id) | (PO.vendor==v.name)).all()
+        po_count=len(po_list)
         grn_count=GRN.query.filter((GRN.vendor_id==v.id) | (GRN.vendor==v.name)).count()
-        return jsonify(id=v.id, vendor_code=v.vendor_code, name=v.name, station=v.station, address=v.address, state=v.state, gst_no=v.gst_no, pan_no=v.pan_no, tan_no=v.tan_no, legal_status=v.legal_status, vendor_category=v.vendor_category, bank_details=banks, contacts=contacts, status=v.status, po_count=po_count, grn_count=grn_count, created_at=v.created_at)
+        total_val=sum([(p.qty or 0)*(p.rate or 0) for p in po_list])
+        last_trans = max([p.created_at for p in po_list if p.created_at], default='') if po_list else v.last_transaction_date
+        return jsonify(id=v.id, vendor_code=v.vendor_code, name=v.name, station=v.station, address=v.address, state=v.state, gst_no=v.gst_no, pan_no=v.pan_no, tan_no=v.tan_no, legal_status=v.legal_status, vendor_category=v.vendor_category, bank_details=banks, contacts=contacts, status=v.status, msme_cert_no=v.msme_cert_no, msme_expiry=v.msme_expiry, msme_upload=v.msme_upload, gst_reg_type=v.gst_reg_type, tds_section=v.tds_section, vendor_rating=v.vendor_rating, last_audit_date=v.last_audit_date, documents=docs, opening_balance=v.opening_balance, opening_balance_type=v.opening_balance_type, ledger_group=v.ledger_group, created_by=v.created_by, created_at=v.created_at, updated_by=v.updated_by, updated_at=v.updated_at, approval_status=v.approval_status, last_transaction_date=last_trans or v.last_transaction_date, total_business_value=total_val or v.total_business_value, po_count=po_count, grn_count=grn_count)
     if request.method=='PUT':
         data=request.get_json() or {}
         name=(data.get('name') or '').strip()
@@ -552,6 +620,20 @@ def vendor_one(vid):
         v.bank_details=json.dumps(data.get('bank_details', []))
         v.contacts=json.dumps(data.get('contacts', []))
         v.status=data.get('status', v.status)
+        v.msme_cert_no=data.get('msme_cert_no', v.msme_cert_no)
+        v.msme_expiry=data.get('msme_expiry', v.msme_expiry)
+        if data.get('msme_upload'): v.msme_upload=data.get('msme_upload')
+        v.gst_reg_type=data.get('gst_reg_type', v.gst_reg_type)
+        v.tds_section=data.get('tds_section', v.tds_section)
+        v.vendor_rating=int(data.get('vendor_rating') or v.vendor_rating or 0)
+        v.last_audit_date=data.get('last_audit_date', v.last_audit_date)
+        if data.get('documents'): v.documents=json.dumps(data.get('documents'))
+        v.opening_balance=float(data.get('opening_balance') or v.opening_balance or 0)
+        v.opening_balance_type=data.get('opening_balance_type', v.opening_balance_type)
+        v.ledger_group=data.get('ledger_group', v.ledger_group)
+        v.updated_by=data.get('updated_by','Admin')
+        v.updated_at=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        v.approval_status=data.get('approval_status', v.approval_status)
         v.type=v.legal_status
         db.session.commit()
         return jsonify(ok=True)
@@ -625,7 +707,7 @@ def qr_list(): return jsonify([{'bag_id':q.bag_id,'product':q.product} for q in 
 # ========== FRONTEND HTML - v4.4.9 Vendor Master Enhanced ==========
 HTML = """<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lemon ERP v4.4.9 - Vendor Master Enhanced</title>
+<title>Lemon ERP v4.4.10 - Vendor Compliance + Docs + Opening Bal + Workflow</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
 <style>
 :root{--green:#1A2E1E;--brass:#C9A86A;--alab:#FAF6F0;--lemon:#F2E863;--line:#E8E0D5;--gray:#F6F5F3}
@@ -670,7 +752,7 @@ input,select,textarea{padding:8px 10px;border-radius:7px;border:1.5px solid var(
 .search-input input{padding-left:28px}
 </style></head>
 <body>
-<div class="topnav"><div class="brand">🍋 LEMON <span>ERP</span> v4.4.9 - Vendor Master Enhanced - Base v1.3.py</div><button class="btn btn-y" onclick="location.reload()">Reload</button></div>
+<div class="topnav"><div class="brand">🍋 LEMON <span>ERP</span> v4.4.10 - Vendor Compliance + Docs + Opening Bal + Workflow - Base v1.3.py</div><button class="btn btn-y" onclick="location.reload()">Reload</button></div>
 <div class="layout">
 <div class="sidebar">
 <h4>MAIN</h4>
@@ -694,9 +776,9 @@ input,select,textarea{padding:8px 10px;border-radius:7px;border:1.5px solid var(
 <div class="content">
 <!-- DASH -->
 <div id="dash" class="tabcontent">
-<div class="card"><h3>Dashboard - v4.4.9 Vendor Master Enhanced - Base v1.3.py</h3>
+<div class="card"><h3>Dashboard - v4.4.10 Vendor Compliance Docs Opening Bal Workflow - Single Dropdown - Base v1.3.py</h3>
 <div class="row"><div class="card kpi"><div>Total Value</div><div class="val" id="totalVal">Rs 0 Lakh</div></div><div class="card kpi"><div>SBUs</div><div class="val" id="sbuCountDash">0</div></div><div class="card kpi"><div>Products</div><div class="val" id="prodCountDash">0</div></div><div class="card kpi"><div>Categories</div><div class="val" id="catCountDash">0</div></div></div>
-<div class="card"><b>v4.4.9 Changes:</b> ONLY Vendor Master Enhanced - Heading + Add Vendor Button top + Filters + Search bar + Auto Code VEND-0001 + Station/State/GST/PAN/TAN/Legal Status/Vendor Category hidden masters + Bank Details Add Bank Account (Bank searchable nationalised banks + Branch/Account Name/IFSC/Account No/Transaction Limit) + Add Contact (Name/Designation hidden master/Mobile/Whatsapp/Land Line/Ext/Email) + PO/GRN counts - Everything else locked to v4.4.8 FIXED</div>
+<div class="card"><b>v4.4.10 Changes:</b> ONLY Vendor Master Enhanced - A MSME Cert No+Expiry+Upload GST Reg Type Regular/Composition/Unregistered/SEZ TDS 194C/194J/194Q/194H Rating 1-5 + Last Audit + Docs GST Cert PAN Cheque MSME ISO + B Opening Bal Dr/Cr Ledger Group Sundry Creditors + E Dept + Primary flag + F CreatedBy/At UpdatedBy/At Approval Draft/Pending/Approved/Rejected Last Trans Date Total Business Value - Bank single dropdown fix kept - Nothing removed - Heading + Add Vendor Button top + Filters + Search bar + Auto Code VEND-0001 + Station/State/GST/PAN/TAN/Legal Status/Vendor Category hidden masters + Bank Details Add Bank Account (Bank searchable nationalised banks + Branch/Account Name/IFSC/Account No/Transaction Limit) + Add Contact (Name/Designation hidden master/Mobile/Whatsapp/Land Line/Ext/Email) + PO/GRN counts - Everything else locked to v4.4.8 FIXED</div>
 <div id="alerts"></div>
 </div></div>
 
@@ -721,25 +803,27 @@ input,select,textarea{padding:8px 10px;border-radius:7px;border:1.5px solid var(
 <div id="sbuList">Loading SBUs...</div>
 </div>
 
-<!-- VENDORS v4.4.9 ENHANCED -->
+<!-- VENDORS v4.4.10 COMPLIANCE + DOCS + OPENING + WORKFLOW -->
 <div id="vendors" class="tabcontent hidden">
 <div class="card" style="text-align:center;padding:24px">
 <h1 style="font-size:26px;font-weight:900;margin:0 0 6px;text-align:center"><i class="bi bi-people"></i> Vendor Master</h1>
-<p style="font-size:11px;color:#666;text-align:center;margin:0 0 14px">Vendor Master - Search + Filter + Auto Code VEND-0001 + Bank Details + Contacts - v4.4.9 Enhanced - Base v1.3.py</p>
+<p style="font-size:11px;color:#666;text-align:center;margin:0 0 14px">Vendor Master - VEND-0001 + Compliance MSME GST Reg TDS Rating + Docs GST PAN Cheque MSME ISO + Opening Bal Dr/Cr Ledger + Dept Primary + Workflow Draft/Pending/Approved + Business Value - v4.4.10 - Base v1.3.py</p>
 <button class="btn btn-y" style="padding:14px 36px;font-size:15px;font-weight:800" onclick="openAddVendorPopup()">Add New Vendor</button>
 </div>
 
 <div class="filter-bar">
-<div class="search-input" style="flex:2;min-width:220px"><i class="bi bi-search"></i><input id="vendorSearch" placeholder="Search by Vendor Name, Vendor Code, Station, State, GST, PAN..." onkeyup="loadVendors()"></div>
-<div style="flex:1;min-width:140px"><label style="font-size:10px;font-weight:700">Legal Status</label><select id="vendorLegalFilter" onchange="loadVendors()"><option value="">All Legal Status</option></select></div>
-<div style="flex:1;min-width:140px"><label style="font-size:10px;font-weight:700">Vendor Category</label><select id="vendorCatFilter" onchange="loadVendors()"><option value="">All Categories</option></select></div>
-<div style="flex:1;min-width:120px"><label style="font-size:10px;font-weight:700">State</label><select id="vendorStateFilter" onchange="loadVendors()"><option value="">All States</option></select></div>
-<div style="flex:1;min-width:120px"><label style="font-size:10px;font-weight:700">Status</label><select id="vendorStatusFilter" onchange="loadVendors()"><option value="">All Status</option><option value="Active">Active</option><option value="Inactive">Inactive</option><option value="Blocked">Blocked</option></select></div>
+<div class="search-input" style="flex:2;min-width:200px"><i class="bi bi-search"></i><input id="vendorSearch" placeholder="Search Name, Code, Station, State, GST, PAN, MSME Cert..." onkeyup="loadVendors()"></div>
+<div style="flex:1;min-width:120px"><label style="font-size:10px;font-weight:700">Legal Status</label><select id="vendorLegalFilter" onchange="loadVendors()"><option value="">All Legal Status</option></select></div>
+<div style="flex:1;min-width:120px"><label style="font-size:10px;font-weight:700">Category</label><select id="vendorCatFilter" onchange="loadVendors()"><option value="">All Categories</option></select></div>
+<div style="flex:1;min-width:100px"><label style="font-size:10px;font-weight:700">State</label><select id="vendorStateFilter" onchange="loadVendors()"><option value="">All States</option></select></div>
+<div style="flex:1;min-width:100px"><label style="font-size:10px;font-weight:700">Status</label><select id="vendorStatusFilter" onchange="loadVendors()"><option value="">All Status</option><option value="Active">Active</option><option value="Inactive">Inactive</option><option value="Blocked">Blocked</option></select></div>
+<div style="flex:1;min-width:110px"><label style="font-size:10px;font-weight:700">Approval</label><select id="vendorApprovalFilter" onchange="loadVendors()"><option value="">All Approval</option><option value="Draft">Draft</option><option value="Pending">Pending</option><option value="Approved">Approved</option><option value="Rejected">Rejected</option></select></div>
+<div style="flex:1;min-width:80px"><label style="font-size:10px;font-weight:700">Rating</label><select id="vendorRatingFilter" onchange="loadVendors()"><option value="">All Rating</option><option value="5">5★</option><option value="4">4★</option><option value="3">3★</option><option value="2">2★</option><option value="1">1★</option></select></div>
 <div style="display:flex;gap:6px;align-items:end"><button class="btn btn-g" onclick="loadVendors()">Filter</button><button class="btn btn-w" onclick="resetVendorFilters()">Reset</button></div>
 </div>
 
-<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h3>Vendors List - PO/GRN Counts - v4.4.9</h3><span id="vendorCountBadge" class="badge brass">0 Vendors</span></div>
-<table><thead><tr><th>#</th><th>Vendor Code</th><th>Vendor Name - Hover for Details</th><th>Station | State</th><th>GST | PAN | TAN</th><th>Legal Status | Category</th><th>Banks | Contacts</th><th>POs | GRNs</th><th>Status</th><th>Actions</th></tr></thead><tbody id="vendorTbl"></tbody></table>
+<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h3>Vendors List - Compliance + Docs + Business Value - v4.4.10</h3><span id="vendorCountBadge" class="badge brass">0 Vendors</span></div>
+<div style="overflow-x:auto"><table><thead><tr><th>#</th><th>Code | Name</th><th>Station | State | GST Reg</th><th>MSME | Rating | Audit</th><th>Opening | Ledger | TDS</th><th>Banks | Contacts (Dept+Primary)</th><th>POs | GRNs | Value | Last Trans</th><th>Docs | Approval | Status | Created</th><th>Actions</th></tr></thead><tbody id="vendorTbl"></tbody></table></div>
 </div>
 </div>
 
@@ -768,10 +852,10 @@ input,select,textarea{padding:8px 10px;border-radius:7px;border:1.5px solid var(
 <div class="asset-section"><div style="display:flex;justify-content:space-between"><h4>📦 Stock Yards</h4><button class="btn btn-y" onclick="addYardField()">Add Stock Yard</button></div><p style="font-size:10px;color:#666">Add Stock Yard Button - when clicked: *Yard Name *Add Yard Items - dropdown from all categories, Opening stock.</p><div id="yardsContainer"><p style="text-align:center;color:#888">No stock yards</p></div></div>
 </div><div class="modal-footer"><button class="btn btn-g" style="flex:1;padding:14px;font-size:13px" onclick="saveSBU()">Save SBU - Strategic Business Units</button><button class="btn btn-w" onclick="closeAddSBU()">Cancel</button></div></div></div>
 
-<!-- VENDOR MODAL v4.4.9 ENHANCED -->
-<div id="vendorModal" class="modal hidden" onclick="if(event.target===this) closeAddVendorPopup()"><div class="modal-content" style="max-width:1100px"><div class="modal-header"><b>Add Vendor - Vendor Master Enhanced - v4.4.9 - VEND-0001 Auto + Banks + Contacts</b><button class="close-x" onclick="closeAddVendorPopup()">×</button></div><div class="modal-body">
+<!-- VENDOR MODAL v4.4.10 COMPLIANCE + DOCS + OPENING + WORKFLOW -->
+<div id="vendorModal" class="modal hidden" onclick="if(event.target===this) closeAddVendorPopup()"><div class="modal-content" style="max-width:1200px"><div class="modal-header"><b>Add Vendor - v4.4.10 Compliance Docs Opening Bal Workflow - VEND-0001 + Banks + Contacts + Dept Primary</b><button class="close-x" onclick="closeAddVendorPopup()">×</button></div><div class="modal-body">
 <input type="hidden" id="vend_id">
-<div class="form-box" style="background:#FFFBEB;border:2px solid var(--brass)"><b>Vendor Details - Mandatory Fields *</b>
+<div class="form-box" style="background:#FFFBEB;border:2px solid var(--brass)"><b>Vendor Details - Mandatory Fields * - v4.4.10</b>
 <div class="row"><div>Vendor Name *<input id="vend_name" placeholder="Vendor Name e.g. Rajasthan Limestone Suppliers"></div><div>Station - Text field<input id="vend_station" placeholder="Station e.g. Jodhpur, Gotan, Beawar"></div></div>
 <div>Address - Text<textarea id="vend_address" placeholder="Full Address"></textarea></div>
 <div class="row"><div>State - Text (for identifying GST code)<input id="vend_state" placeholder="State e.g. Rajasthan - RJ" list="stateList"><datalist id="stateList"><option value="Rajasthan"><option value="Gujarat"><option value="Madhya Pradesh"><option value="Maharashtra"><option value="Uttar Pradesh"><option value="Andhra Pradesh"><option value="Karnataka"><option value="Tamil Nadu"><option value="Haryana"><option value="Punjab"><option value="Delhi"><option value="West Bengal"><option value="Bihar"><option value="Odisha"><option value="Chhattisgarh"></datalist></div><div>GST No. - Text<input id="vend_gst" placeholder="22AAAAA0000A1Z5"></div></div>
@@ -780,11 +864,34 @@ input,select,textarea{padding:8px 10px;border-radius:7px;border:1.5px solid var(
 <div class="row"><div>Vendor Code - Auto Generated<input id="vend_code_preview" disabled style="background:var(--alab);font-weight:800" placeholder="VEND-0001 Auto when saved"></div><div>Status<select id="vend_status"><option value="Active">Active</option><option value="Inactive">Inactive</option><option value="Blocked">Blocked</option></select></div></div>
 </div>
 
-<div class="asset-section"><div style="display:flex;justify-content:space-between;align-items:center"><h4>🏦 Bank Details - Add Bank Account Button</h4><button class="btn btn-y" onclick="addVendorBankField()">Add Bank Account</button></div><p style="font-size:10px;color:#666">When clicked on Add Bank Account - Add new line for Bank details: *Select Bank searchable dropdown of all nationalised banks India + Other bank (hidden bank master) *Branch Name *Account Name *IFSC Code *Account No *Transaction Limit</p><div id="vendorBanksContainer"><p style="text-align:center;color:#888;padding:12px">No bank accounts - Click Add Bank Account Button</p></div></div>
+<div class="asset-section"><h4>📋 Compliance - MSME + GST Reg Type + TDS + Rating + Audit - v4.4.10</h4>
+<div class="row"><div>MSME Certificate No<input id="vend_msme_no" placeholder="MSME Cert No e.g. UDYAM-RJ-..."></div><div>MSME Expiry Date<input type="date" id="vend_msme_expiry"></div><div>MSME Upload (File name / base64)<input id="vend_msme_upload" placeholder="Paste base64 or file name - GST Cert upload section below for all docs"></div></div>
+<div class="row"><div>GST Registration Type<select id="vend_gst_reg_type"><option value="Regular">Regular</option><option value="Composition">Composition</option><option value="Unregistered">Unregistered</option><option value="SEZ">SEZ</option><option value="Deemed Export">Deemed Export</option><option value="Overseas">Overseas</option></select></div><div>TDS Section<select id="vend_tds_section"><option value="194C">194C - Contractors</option><option value="194J">194J - Professional</option><option value="194Q">194Q - Purchase >50L</option><option value="194H">194H - Commission</option><option value="194I">194I - Rent</option><option value="192">192 - Salary</option><option value="None">None</option></select></div></div>
+<div class="row"><div>Vendor Rating 1-5 stars<select id="vend_rating"><option value="0">0 - Not Rated</option><option value="1">1★ - Poor</option><option value="2">2★ - Average</option><option value="3">3★ - Good</option><option value="4">4★ - Very Good</option><option value="5">5★ - Excellent</option></select></div><div>Last Audit Date<input type="date" id="vend_last_audit"></div></div>
+</div>
 
-<div class="asset-section"><div style="display:flex;justify-content:space-between;align-items:center"><h4>👤 Contacts - Add Contact Button</h4><button class="btn btn-y" onclick="addVendorContactField()">Add Contact</button></div><p style="font-size:10px;color:#666">When clicked on Add Contact - Add new line: *Name *Designation dropdown hidden master *Mobile No *Whatsapp No (for sending whatsapp from ERP) *Land Line *Extension No *Email</p><div id="vendorContactsContainer"><p style="text-align:center;color:#888;padding:12px">No contacts - Click Add Contact Button</p></div></div>
+<div class="asset-section"><h4>📄 Document Uploads - GST Cert, PAN Card, Cancelled Cheque, MSME Cert, ISO Cert - v4.4.10</h4><p style="font-size:10px;color:#666">Upload as base64 or file name - Stored in documents JSON - {gst_cert, pan_card, cancelled_cheque, msme_cert, iso_cert} - For now paste file path or base64 string - Future version will have real file upload</p>
+<div class="row"><div>GST Certificate Upload<input id="doc_gst_cert" placeholder="GST Cert file name / base64"></div><div>PAN Card Upload<input id="doc_pan_card" placeholder="PAN Card file name / base64"></div></div>
+<div class="row"><div>Cancelled Cheque Upload<input id="doc_cancelled_cheque" placeholder="Cancelled Cheque file name / base64"></div><div>MSME Certificate Upload<input id="doc_msme_cert" placeholder="MSME Cert file name / base64"></div></div>
+<div class="row"><div>ISO Certificate Upload<input id="doc_iso_cert" placeholder="ISO Cert file name / base64"></div><div>Other Document (if any)<input id="doc_other" placeholder="Other doc"></div></div>
+</div>
 
-</div><div class="modal-footer"><button class="btn btn-g" style="flex:1;padding:14px;font-size:13px" onclick="saveVendor()">Save Vendor - VEND-0001 Auto</button><button class="btn btn-w" onclick="closeAddVendorPopup()">Cancel</button></div></div></div>
+<div class="asset-section"><h4>💰 Opening Balance + Ledger Group - For Migration - v4.4.10</h4>
+<div class="row"><div>Opening Balance - Number<input type="number" id="vend_opening_bal" placeholder="Opening Balance e.g. 150000"></div><div>Dr/Cr<select id="vend_opening_type"><option value="Dr">Dr - Receivable from vendor (Advance paid)</option><option value="Cr">Cr - Payable to vendor (Due)</option></select></div></div>
+<div class="row"><div>Ledger Group<input id="vend_ledger_group" list="ledgerList" placeholder="Sundry Creditors" value="Sundry Creditors"><datalist id="ledgerList"><option value="Sundry Creditors"><option value="Sundry Debtors"><option value="Trade Creditors"><option value="MSME Creditors"><option value="Non-MSME Creditors"><option value="Service Creditors"></datalist></div><div>Total Business Value (Auto from POs - qty*rate)<input id="vend_total_business" disabled style="background:var(--alab);font-weight:800" placeholder="Auto calculated from POs"></div></div>
+</div>
+
+<div class="asset-section"><h4>🏦 Bank Details - Add Bank Account Button - Single Searchable Dropdown - v4.4.10</h4><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:10px;color:#666">When clicked on Add Bank Account - Add new line: Select Bank searchable dropdown nationalised banks + Other bank hidden bank master + Branch + Account Name + IFSC + Account No + Transaction Limit</span><button class="btn btn-y" onclick="addVendorBankField()">Add Bank Account</button></div><div id="vendorBanksContainer"><p style="text-align:center;color:#888;padding:12px">No bank accounts - Click Add Bank Account Button</p></div></div>
+
+<div class="asset-section"><h4>👤 Contacts - Add Contact Button - Dept + Primary Flag - v4.4.10</h4><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:10px;color:#666">When clicked on Add Contact - Add new line: Name + Designation hidden master + Department + Primary flag + Mobile + Whatsapp + Land Line + Ext + Email</span><button class="btn btn-y" onclick="addVendorContactField()">Add Contact</button></div><div id="vendorContactsContainer"><p style="text-align:center;color:#888;padding:12px">No contacts - Click Add Contact Button</p></div></div>
+
+<div class="asset-section"><h4>✅ Approval Workflow + Audit - v4.4.10</h4>
+<div class="row"><div>Approval Status<select id="vend_approval_status"><option value="Draft">Draft</option><option value="Pending">Pending Approval</option><option value="Approved">Approved</option><option value="Rejected">Rejected</option></select></div><div>Created By<input id="vend_created_by" placeholder="Admin" value="Admin"></div></div>
+<div class="row"><div>Last Transaction Date (Auto from POs)<input id="vend_last_trans" disabled style="background:var(--alab)" placeholder="Auto from POs"></div><div>Updated By<input id="vend_updated_by" placeholder="Admin" value="Admin"></div></div>
+<p style="font-size:10px;color:#888">Created At / Updated At auto - Total Business Value = Sum of PO qty*rate - Last Transaction = Max PO date - Approval workflow Draft→Pending→Approved→Rejected</p>
+</div>
+
+</div><div class="modal-footer"><button class="btn btn-g" style="flex:1;padding:14px;font-size:13px" onclick="saveVendor()">Save Vendor - v4.4.10 Compliance + Docs + Opening + Workflow</button><button class="btn btn-w" onclick="closeAddVendorPopup()">Cancel</button></div></div></div>
 
 <script>
 function openTab(id){document.querySelectorAll('.tabcontent').forEach(e=>e.classList.add('hidden'));document.getElementById(id).classList.remove('hidden');document.querySelectorAll('.menu').forEach(m=>m.classList.remove('active')); if(id==='product_category') loadCategories(); if(id==='products') loadProducts(); if(id==='sbus') loadSBUs(); if(id==='dash') loadDash(); if(id==='stock') loadStock(); if(id==='vendors') loadVendors();}
@@ -1007,23 +1114,19 @@ async function duplicateSBU(id){
 }
 async function delSBU(id){ if(!confirm('Delete SBU? Strategic Business Units')) return; await fetch(`/api/sbus/${id}`,{method:'DELETE'}); loadSBUs();}
 
-// Vendor v4.4.9 Enhanced
+// Vendor v4.4.10 Compliance + Docs + Opening + Workflow - Enhanced
 let vendorBanks=[], vendorContacts=[], vendorMasters={banks:[], legal_status:[], vendor_category:[], designations:[]};
 
 async function loadVendorMasters(){
  let r=await fetch('/api/vendor_masters'); let d=await r.json(); vendorMasters=d;
  let legalSel=document.getElementById('vendorLegalFilter'); let catSel=document.getElementById('vendorCatFilter');
  let legalModalSel=document.getElementById('vend_legal_status_sel'); let catModalSel=document.getElementById('vend_category_sel');
- let stateSel=document.getElementById('vendorStateFilter');
- let statesSet=new Set();
  if(legalSel) {legalSel.innerHTML='<option value="">All Legal Status</option>'; }
  if(catSel) catSel.innerHTML='<option value="">All Categories</option>';
  if(legalModalSel) legalModalSel.innerHTML='<option value="">Select Legal Status</option>';
  if(catModalSel) catModalSel.innerHTML='<option value="">Select Category</option>';
  d.legal_status.forEach(ls=>{ if(legalSel) legalSel.innerHTML+=`<option value="${ls.name}">${ls.name}</option>`; if(legalModalSel) legalModalSel.innerHTML+=`<option value="${ls.name}">${ls.name}</option>`; });
  d.vendor_category.forEach(vc=>{ if(catSel) catSel.innerHTML+=`<option value="${vc.name}">${vc.name}</option>`; if(catModalSel) catModalSel.innerHTML+=`<option value="${vc.name}">${vc.name}</option>`; });
- // banks for dropdown - will be used in bank fields
- // states will be collected from existing vendors
 }
 
 function getBankOptions(selected){
@@ -1036,27 +1139,38 @@ function getDesignationOptions(selected){
  (vendorMasters.designations||[]).forEach(d=>{ h+=`<option value="${d.name}" ${selected===d.name?'selected':''}>${d.name}</option>`; });
  return h;
 }
+function getDepartmentOptions(selected){
+ let depts=["Purchase","Accounts","Sales","Logistics","Management","Quality","HR","Finance","Operations","Admin","Others"];
+ let h='<option value="">Select Department</option>';
+ depts.forEach(dp=>{ h+=`<option value="${dp}" ${selected===dp?'selected':''}>${dp}</option>`; });
+ return h;
+}
 
 function addVendorBankField(data=null){
  let c=document.getElementById('vendorBanksContainer'); if(c.innerHTML.includes('No bank accounts')) c.innerHTML='';
  let id=`vbank_${Date.now()}_${Math.floor(Math.random()*9999)}`;
- let html=`<div id="${id}" class="product-line" style="border-left-color:#1A2E1E"><div class="row"><div>Select Bank - Searchable dropdown<input list="bankList_${id}" class="vb_bank" placeholder="Type to search bank e.g. SBI" value="${data?.bank_name||''}"><datalist id="bankList_${id}">${(vendorMasters.banks||[]).map(b=>`<option value="${b.bank_name}">`).join('')}</datalist><select class="vb_bank_sel" style="margin-top:4px" onchange="this.previousElementSibling.value=this.value">${getBankOptions(data?.bank_name||'')}</select></div><div>Branch Name - Text<input class="vb_branch" placeholder="Branch Name" value="${data?.branch_name||''}"></div></div>
- <div class="row"><div>Account Name - Text<input class="vb_acc_name" placeholder="Account Name e.g. M/s Rajasthan Lime" value="${data?.account_name||''}"></div><div>IFSC Code - Text<input class="vb_ifsc" placeholder="IFSC e.g. SBIN0001234" value="${data?.ifsc_code||''}"></div></div>
- <div class="row"><div>Account No - Text<input class="vb_acc_no" placeholder="Account No" value="${data?.account_no||''}"></div><div>Transaction Limit - Numbers<input type="number" class="vb_limit" placeholder="Limit e.g. 500000" value="${data?.transaction_limit||''}"></div><div style="max-width:80px"><button class="btn btn-r" onclick="document.getElementById('${id}').remove()">Delete</button></div></div></div>`;
+ let html=`<div id="${id}" class="product-line" style="border-left-color:#1A2E1E"><div class="row"><div>Select Bank - Searchable dropdown (Single field fixed)<input list="bankList_${id}" class="vb_bank" placeholder="Type to search bank e.g. SBI, HDFC - Choose from list" value="${data?.bank_name||''}"><datalist id="bankList_${id}">${(vendorMasters.banks||[]).map(b=>`<option value="${b.bank_name}">${b.bank_name} (${b.bank_code})</option>`).join('')}</datalist><p style="font-size:9px;color:#888">Single field - Start typing SBI, PNB, HDFC - 34 banks + Other</p></div><div>Branch Name<input class="vb_branch" placeholder="Branch Name" value="${data?.branch_name||''}"></div></div>
+ <div class="row"><div>Account Name<input class="vb_acc_name" placeholder="Account Name e.g. M/s Rajasthan Lime" value="${data?.account_name||''}"></div><div>IFSC Code<input class="vb_ifsc" placeholder="IFSC e.g. SBIN0001234" value="${data?.ifsc_code||''}"></div></div>
+ <div class="row"><div>Account No<input class="vb_acc_no" placeholder="Account No" value="${data?.account_no||''}"></div><div>Transaction Limit<input type="number" class="vb_limit" placeholder="Limit e.g. 500000" value="${data?.transaction_limit||''}"></div><div style="max-width:80px"><button class="btn btn-r" onclick="document.getElementById('${id}').remove()">Delete</button></div></div></div>`;
  c.insertAdjacentHTML('beforeend', html);
 }
 function addVendorContactField(data=null){
  let c=document.getElementById('vendorContactsContainer'); if(c.innerHTML.includes('No contacts')) c.innerHTML='';
  let id=`vcont_${Date.now()}_${Math.floor(Math.random()*9999)}`;
- let html=`<div id="${id}" class="product-line" style="border-left-color:#C9A86A"><div class="row"><div>Name - Text<input class="vc_name" placeholder="Contact Person Name" value="${data?.name||''}"></div><div>Designation - Dropdown<select class="vc_designation">${getDesignationOptions(data?.designation||'')}</select><p style="font-size:9px;color:#888">Hidden master</p></div></div>
- <div class="row"><div>Mobile No - Number<input type="number" class="vc_mobile" placeholder="Mobile No" value="${data?.mobile_no||''}"></div><div>Whatsapp No - Number (for sending whatsapp from ERP)<input type="number" class="vc_whatsapp" placeholder="Whatsapp No" value="${data?.whatsapp_no||''}"></div></div>
- <div class="row"><div>Land Line - Number<input type="number" class="vc_landline" placeholder="Land Line" value="${data?.landline||''}"></div><div>Extension No - Number<input type="number" class="vc_ext" placeholder="Ext No" value="${data?.ext_no||''}"></div><div>Email - Text<input type="email" class="vc_email" placeholder="Email" value="${data?.email||''}"></div><div style="max-width:80px"><button class="btn btn-r" onclick="document.getElementById('${id}').remove()">Delete</button></div></div></div>`;
+ let isPrimary=data?.is_primary?'checked':'';
+ let dept=data?.department||'';
+ let html=`<div id="${id}" class="product-line" style="border-left-color:#C9A86A"><div class="row"><div>Name<input class="vc_name" placeholder="Contact Person Name" value="${data?.name||''}"></div><div>Designation<select class="vc_designation">${getDesignationOptions(data?.designation||'')}</select></div><div>Department<select class="vc_department">${getDepartmentOptions(dept)}</select><p style="font-size:9px;color:#888">E. Add departments</p></div><div style="max-width:90px">Primary?<br><input type="checkbox" class="vc_primary" ${isPrimary} style="width:20px;height:20px"><p style="font-size:9px">Primary contact flag</p></div></div>
+ <div class="row"><div>Mobile<input type="number" class="vc_mobile" placeholder="Mobile No" value="${data?.mobile_no||''}"></div><div>Whatsapp<input type="number" class="vc_whatsapp" placeholder="Whatsapp No" value="${data?.whatsapp_no||''}"></div></div>
+ <div class="row"><div>Land Line<input type="number" class="vc_landline" placeholder="Land Line" value="${data?.landline||''}"></div><div>Ext No<input type="number" class="vc_ext" placeholder="Ext No" value="${data?.ext_no||''}"></div><div>Email<input type="email" class="vc_email" placeholder="Email" value="${data?.email||''}"></div><div style="max-width:80px"><button class="btn btn-r" onclick="document.getElementById('${id}').remove()">Delete</button></div></div></div>`;
  c.insertAdjacentHTML('beforeend', html);
 }
 
 function openAddVendorPopup(){
  document.getElementById('vendorModal').classList.remove('hidden');
  document.getElementById('vend_id').value=''; document.getElementById('vend_name').value=''; document.getElementById('vend_station').value=''; document.getElementById('vend_address').value=''; document.getElementById('vend_state').value=''; document.getElementById('vend_gst').value=''; document.getElementById('vend_pan').value=''; document.getElementById('vend_tan').value=''; document.getElementById('vend_legal_status').value=''; document.getElementById('vend_legal_status_sel').value=''; document.getElementById('vend_category').value=''; document.getElementById('vend_category_sel').value=''; document.getElementById('vend_code_preview').value=''; document.getElementById('vend_status').value='Active';
+ document.getElementById('vend_msme_no').value=''; document.getElementById('vend_msme_expiry').value=''; document.getElementById('vend_msme_upload').value=''; document.getElementById('vend_gst_reg_type').value='Regular'; document.getElementById('vend_tds_section').value='194C'; document.getElementById('vend_rating').value='0'; document.getElementById('vend_last_audit').value='';
+ document.getElementById('doc_gst_cert').value=''; document.getElementById('doc_pan_card').value=''; document.getElementById('doc_cancelled_cheque').value=''; document.getElementById('doc_msme_cert').value=''; document.getElementById('doc_iso_cert').value=''; document.getElementById('doc_other').value='';
+ document.getElementById('vend_opening_bal').value=''; document.getElementById('vend_opening_type').value='Dr'; document.getElementById('vend_ledger_group').value='Sundry Creditors'; document.getElementById('vend_total_business').value=''; document.getElementById('vend_approval_status').value='Draft'; document.getElementById('vend_created_by').value='Admin'; document.getElementById('vend_updated_by').value='Admin'; document.getElementById('vend_last_trans').value='';
  document.getElementById('vendorBanksContainer').innerHTML='<p style="text-align:center;color:#888;padding:12px">No bank accounts - Click Add Bank Account Button</p>';
  document.getElementById('vendorContactsContainer').innerHTML='<p style="text-align:center;color:#888;padding:12px">No contacts - Click Add Contact Button</p>';
  loadVendorMasters();
@@ -1066,14 +1180,22 @@ function closeAddVendorPopup(){document.getElementById('vendorModal').classList.
 async function saveVendor(){
  let name=document.getElementById('vend_name').value.trim(); if(!name) return alert('Vendor Name mandatory');
  let banks=[]; document.querySelectorAll('#vendorBanksContainer > div[id^="vbank_"]').forEach(div=>{
-   let bank_name=div.querySelector('.vb_bank').value || div.querySelector('.vb_bank_sel').value;
+   let bank_name=div.querySelector('.vb_bank').value;
    let branch=div.querySelector('.vb_branch').value; let acc_name=div.querySelector('.vb_acc_name').value; let ifsc=div.querySelector('.vb_ifsc').value; let acc_no=div.querySelector('.vb_acc_no').value; let limit=div.querySelector('.vb_limit').value;
    if(bank_name) banks.push({bank_name, branch_name:branch, account_name:acc_name, ifsc_code:ifsc, account_no:acc_no, transaction_limit:parseFloat(limit)||0});
  });
  let contacts=[]; document.querySelectorAll('#vendorContactsContainer > div[id^="vcont_"]').forEach(div=>{
-   let cname=div.querySelector('.vc_name').value; let desg=div.querySelector('.vc_designation').value; let mob=div.querySelector('.vc_mobile').value; let wapp=div.querySelector('.vc_whatsapp').value; let land=div.querySelector('.vc_landline').value; let ext=div.querySelector('.vc_ext').value; let email=div.querySelector('.vc_email').value;
-   if(cname) contacts.push({name:cname, designation:desg, mobile_no:mob, whatsapp_no:wapp, landline:land, ext_no:ext, email});
+   let cname=div.querySelector('.vc_name').value; let desg=div.querySelector('.vc_designation').value; let dept=div.querySelector('.vc_department').value; let isPrimary=div.querySelector('.vc_primary').checked; let mob=div.querySelector('.vc_mobile').value; let wapp=div.querySelector('.vc_whatsapp').value; let land=div.querySelector('.vc_landline').value; let ext=div.querySelector('.vc_ext').value; let email=div.querySelector('.vc_email').value;
+   if(cname) contacts.push({name:cname, designation:desg, department:dept, is_primary:isPrimary, mobile_no:mob, whatsapp_no:wapp, landline:land, ext_no:ext, email});
  });
+ let docs={
+   gst_cert:document.getElementById('doc_gst_cert').value,
+   pan_card:document.getElementById('doc_pan_card').value,
+   cancelled_cheque:document.getElementById('doc_cancelled_cheque').value,
+   msme_cert:document.getElementById('doc_msme_cert').value,
+   iso_cert:document.getElementById('doc_iso_cert').value,
+   other:document.getElementById('doc_other').value
+ };
  let payload={
    name:name,
    station:document.getElementById('vend_station').value,
@@ -1086,13 +1208,27 @@ async function saveVendor(){
    vendor_category:document.getElementById('vend_category').value || document.getElementById('vend_category_sel').value,
    bank_details:banks,
    contacts:contacts,
-   status:document.getElementById('vend_status').value
+   status:document.getElementById('vend_status').value,
+   msme_cert_no:document.getElementById('vend_msme_no').value,
+   msme_expiry:document.getElementById('vend_msme_expiry').value,
+   msme_upload:document.getElementById('vend_msme_upload').value,
+   gst_reg_type:document.getElementById('vend_gst_reg_type').value,
+   tds_section:document.getElementById('vend_tds_section').value,
+   vendor_rating:parseInt(document.getElementById('vend_rating').value)||0,
+   last_audit_date:document.getElementById('vend_last_audit').value,
+   documents:docs,
+   opening_balance:parseFloat(document.getElementById('vend_opening_bal').value)||0,
+   opening_balance_type:document.getElementById('vend_opening_type').value,
+   ledger_group:document.getElementById('vend_ledger_group').value,
+   approval_status:document.getElementById('vend_approval_status').value,
+   created_by:document.getElementById('vend_created_by').value,
+   updated_by:document.getElementById('vend_updated_by').value
  };
  let vid=document.getElementById('vend_id').value;
  let url=vid?`/api/vendors/${vid}`:'/api/vendors'; let method=vid?'PUT':'POST';
  let res=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
  let j=await res.json();
- if(res.ok){alert(`Vendor ${vid?'Updated':'Created'}: ${j.vendor_code||payload.name} - ${banks.length} Banks, ${contacts.length} Contacts`); closeAddVendorPopup(); loadVendors();} else alert(j.error||'Error');
+ if(res.ok){alert(`Vendor ${vid?'Updated':'Created'}: ${j.vendor_code||payload.name} - ${banks.length} Banks, ${contacts.length} Contacts - Rating ${payload.vendor_rating}★ - Approval ${payload.approval_status}`); closeAddVendorPopup(); loadVendors();} else alert(j.error||'Error');
 }
 
 async function loadVendors(){
@@ -1102,35 +1238,40 @@ async function loadVendors(){
  let cat=document.getElementById('vendorCatFilter')?.value||'';
  let state=document.getElementById('vendorStateFilter')?.value||'';
  let status=document.getElementById('vendorStatusFilter')?.value||'';
- let params=new URLSearchParams({search, type:legal, category:cat, state, status});
+ let approval=document.getElementById('vendorApprovalFilter')?.value||'';
+ let rating=document.getElementById('vendorRatingFilter')?.value||'';
+ let params=new URLSearchParams({search, type:legal, category:cat, state, status, approval, rating});
  let r=await fetch(`/api/vendors?${params}`); let vendors=await r.json();
  document.getElementById('vendorCountBadge').innerText=`${vendors.length} Vendors`;
  let tb=document.getElementById('vendorTbl'); tb.innerHTML='';
  let statesSet=new Set();
  vendors.forEach(v=>{ if(v.state) statesSet.add(v.state); });
- let stateSel=document.getElementById('vendorStateFilter'); let curState=stateSel.value;
+ let stateSel=document.getElementById('vendorStateFilter'); let curState=stateSel?stateSel.value:'';
  if(stateSel && stateSel.options.length<=1){
    statesSet.forEach(st=>{ stateSel.innerHTML+=`<option value="${st}" ${curState===st?'selected':''}>${st}</option>`; });
  }
- if(vendors.length===0){ tb.innerHTML=`<tr><td colspan="10" style="text-align:center;padding:20px;color:#888">No vendors - Add New Vendor Button above heading - v4.4.9</td></tr>`; return; }
+ if(vendors.length===0){ tb.innerHTML=`<tr><td colspan="9" style="text-align:center;padding:20px;color:#888">No vendors - Add New Vendor Button above heading - v4.4.10 Compliance</td></tr>`; return; }
  vendors.forEach((v,i)=>{
    let banksHtml=(v.bank_details||[]).length? v.bank_details.map(b=>`<span style="display:block;background:#FFFBEB;padding:3px 6px;border-radius:4px;margin:2px 0;border:1px solid var(--brass);font-size:10px"><b>${b.bank_name}</b> - ${b.account_no} - IFSC ${b.ifsc_code}</span>`).join('') : '<small style="color:#888">No banks</small>';
-   let contactsHtml=(v.contacts||[]).length? v.contacts.map(c=>`<span style="display:block;background:white;padding:3px 6px;border-radius:4px;margin:2px 0;border:1px solid var(--line);font-size:10px"><b>${c.name}</b> (${c.designation}) - M:${c.mobile_no} W:${c.whatsapp_no} <br><small>${c.email||''}</small></span>`).join('') : '<small style="color:#888">No contacts</small>';
+   let contactsHtml=(v.contacts||[]).length? v.contacts.map(c=>`<span style="display:block;background:white;padding:3px 6px;border-radius:4px;margin:2px 0;border:1px solid var(--line);font-size:10px"><b>${c.name}</b> ${c.is_primary?'⭐Primary':''} (${c.designation}) [${c.department||''}] - M:${c.mobile_no} W:${c.whatsapp_no} <br><small>${c.email||''}</small></span>`).join('') : '<small style="color:#888">No contacts</small>';
    let statusClass=v.status==='Active'?'ok':v.status==='Blocked'?'crit':'warn';
-   tb.innerHTML+=`<tr><td>${i+1}</td><td><span style="background:var(--alab);padding:3px 8px;border-radius:6px;border:1px solid var(--line);font-weight:800">${v.vendor_code}</span></td>
-   <td><div class="tooltip"><b>${v.name}</b><span class="tip">Code: ${v.vendor_code}<br>Station: ${v.station}<br>State: ${v.state}<br>GST: ${v.gst_no}<br>PAN: ${v.pan_no}<br>TAN: ${v.tan_no}<br>Legal: ${v.legal_status}<br>Cat: ${v.vendor_category}<br>Address: ${v.address}<br>Status: ${v.status}</span></div><br><small style="color:#888">${v.station||''}</small></td>
-   <td><b>${v.station||''}</b><br><small>${v.state||''}</small></td>
-   <td><small>GST: ${v.gst_no||''}<br>PAN: ${v.pan_no||''}<br>TAN: ${v.tan_no||''}</small></td>
-   <td><span class="badge brass">${v.legal_status||''}</span><br><span class="badge" style="background:#E8F0FE;color:#1A2E1E;border:1px solid #C2D6FF;margin-top:4px;display:inline-block">${v.vendor_category||''}</span></td>
+   let approvalClass=v.approval_status==='Approved'?'ok':v.approval_status==='Rejected'?'crit':v.approval_status==='Pending'?'warn':'brass';
+   let ratingStars='★'.repeat(v.vendor_rating||0)+'☆'.repeat(5-(v.vendor_rating||0));
+   let docsCount=v.documents?Object.values(v.documents).filter(x=>x).length:0;
+   let docsBadge=docsCount>0?`<span class="badge ok">${docsCount} Docs</span>`:'<small style="color:#888">No docs</small>';
+   tb.innerHTML+=`<tr><td>${i+1}</td><td><span style="background:var(--alab);padding:3px 8px;border-radius:6px;border:1px solid var(--line);font-weight:800">${v.vendor_code}</span><br><div class="tooltip"><b>${v.name}</b><span class="tip">Code: ${v.vendor_code}<br>Station: ${v.station}<br>State: ${v.state}<br>GST: ${v.gst_no} (${v.gst_reg_type})<br>PAN: ${v.pan_no}<br>TAN: ${v.tan_no}<br>Legal: ${v.legal_status}<br>Cat: ${v.vendor_category}<br>MSME: ${v.msme_cert_no} Exp: ${v.msme_expiry}<br>TDS: ${v.tds_section}<br>Rating: ${v.vendor_rating}★ Audit: ${v.last_audit_date}<br>Opening: ${v.opening_balance} ${v.opening_balance_type} Ledger: ${v.ledger_group}<br>Approval: ${v.approval_status}<br>Created: ${v.created_by} ${v.created_at}<br>Updated: ${v.updated_by} ${v.updated_at}<br>Last Trans: ${v.last_transaction_date}<br>Business Value: Rs ${v.total_business_value}<br>Address: ${v.address}</span></div><br><small style="color:#888">${v.station||''}</small></td>
+   <td><b>${v.station||''}</b><br><small>${v.state||''}</small><br><span class="badge brass" style="font-size:9px">${v.gst_reg_type||''}</span></td>
+   <td><small>MSME: ${v.msme_cert_no||''}<br>Exp: ${v.msme_expiry||''}</small><br><span style="color:#C9A86A;font-weight:800">${ratingStars}</span> ${v.vendor_rating?`(${v.vendor_rating})`:''}<br><small>Audit: ${v.last_audit_date||''}</small></td>
+   <td><small>Opening: ${v.opening_balance||0} ${v.opening_balance_type}<br>Ledger: ${v.ledger_group||''}<br>TDS: ${v.tds_section||''}</small></td>
    <td><small>Banks: ${v.bank_details.length} | Contacts: ${v.contacts.length}</small><div style="max-height:80px;overflow-y:auto;margin-top:4px">${banksHtml}<hr style="margin:4px 0">${contactsHtml}</div></td>
-   <td><span class="badge ok">POs: ${v.po_count}</span><br><span class="badge" style="background:#F6FFF6;color:#1A2E1E;border:1px solid #C5E1C5;margin-top:4px;display:inline-block">GRNs: ${v.grn_count}</span></td>
-   <td><span class="badge ${statusClass}">${v.status}</span></td>
+   <td><span class="badge ok">POs: ${v.po_count}</span><br><span class="badge" style="background:#F6FFF6;color:#1A2E1E;border:1px solid #C5E1C5;margin-top:4px;display:inline-block">GRNs: ${v.grn_count}</span><br><small>Value: Rs ${(v.total_business_value||0).toFixed(0)}</small><br><small style="font-size:9px">Last: ${v.last_transaction_date||''}</small></td>
+   <td>${docsBadge}<br><span class="badge ${approvalClass}">${v.approval_status}</span><br><span class="badge ${statusClass}">${v.status}</span><br><small style="font-size:9px">${v.created_by} ${v.created_at?.slice(0,10)||''}</small></td>
    <td><button class="btn btn-b" onclick="editVendor(${v.id})">Edit</button> <button class="btn btn-r" onclick="delVendor(${v.id})">Del</button></td></tr>`;
  });
 }
 
 function resetVendorFilters(){
- document.getElementById('vendorSearch').value=''; document.getElementById('vendorLegalFilter').value=''; document.getElementById('vendorCatFilter').value=''; document.getElementById('vendorStateFilter').value=''; document.getElementById('vendorStatusFilter').value=''; loadVendors();
+ document.getElementById('vendorSearch').value=''; document.getElementById('vendorLegalFilter').value=''; document.getElementById('vendorCatFilter').value=''; document.getElementById('vendorStateFilter').value=''; document.getElementById('vendorStatusFilter').value=''; let af=document.getElementById('vendorApprovalFilter'); if(af) af.value=''; let rf=document.getElementById('vendorRatingFilter'); if(rf) rf.value=''; loadVendors();
 }
 
 async function editVendor(id){
@@ -1151,6 +1292,27 @@ async function editVendor(id){
    document.getElementById('vend_category_sel').value=v.vendor_category||'';
    document.getElementById('vend_code_preview').value=v.vendor_code;
    document.getElementById('vend_status').value=v.status||'Active';
+   document.getElementById('vend_msme_no').value=v.msme_cert_no||'';
+   document.getElementById('vend_msme_expiry').value=v.msme_expiry||'';
+   document.getElementById('vend_msme_upload').value=v.msme_upload||'';
+   document.getElementById('vend_gst_reg_type').value=v.gst_reg_type||'Regular';
+   document.getElementById('vend_tds_section').value=v.tds_section||'194C';
+   document.getElementById('vend_rating').value=v.vendor_rating||0;
+   document.getElementById('vend_last_audit').value=v.last_audit_date||'';
+   document.getElementById('doc_gst_cert').value=v.documents?.gst_cert||'';
+   document.getElementById('doc_pan_card').value=v.documents?.pan_card||'';
+   document.getElementById('doc_cancelled_cheque').value=v.documents?.cancelled_cheque||'';
+   document.getElementById('doc_msme_cert').value=v.documents?.msme_cert||'';
+   document.getElementById('doc_iso_cert').value=v.documents?.iso_cert||'';
+   document.getElementById('doc_other').value=v.documents?.other||'';
+   document.getElementById('vend_opening_bal').value=v.opening_balance||0;
+   document.getElementById('vend_opening_type').value=v.opening_balance_type||'Dr';
+   document.getElementById('vend_ledger_group').value=v.ledger_group||'Sundry Creditors';
+   document.getElementById('vend_total_business').value=v.total_business_value||0;
+   document.getElementById('vend_approval_status').value=v.approval_status||'Draft';
+   document.getElementById('vend_created_by').value=v.created_by||'Admin';
+   document.getElementById('vend_updated_by').value=v.updated_by||'Admin';
+   document.getElementById('vend_last_trans').value=v.last_transaction_date||'';
    document.getElementById('vendorBanksContainer').innerHTML='';
    document.getElementById('vendorContactsContainer').innerHTML='';
    (v.bank_details||[]).forEach(b=> addVendorBankField(b));
