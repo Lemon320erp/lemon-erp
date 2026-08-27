@@ -1,6 +1,6 @@
 
 """
-LEMON ERP - MASTER WORKFLOW - v4.4.10
+LEMON ERP - MASTER WORKFLOW - v4.4.10.1
 BASE: v1.3.py = v4.4.7 Fixed Tabular Duplicate + Vendor Master Enhanced
 Fixes in v4.4.10:
 - ONLY Vendor master enhanced - Added on top of v4.4.9.1 - Nothing removed - No other module changed
@@ -39,7 +39,7 @@ from datetime import datetime
 import json, os, re
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'lemon-erp-v44-10-vendor-compliance-docs'
+app.config['SECRET_KEY'] = 'lemon-erp-v44-10-1-vendor-docs-dragdrop'
 db_path = os.environ.get('DATABASE_PATH', os.path.join(os.path.dirname(__file__), '..', 'instance', 'lemon_erp_v44_1_category.db'))
 os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
 app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.abspath(db_path)}'
@@ -707,7 +707,7 @@ def qr_list(): return jsonify([{'bag_id':q.bag_id,'product':q.product} for q in 
 # ========== FRONTEND HTML - v4.4.9 Vendor Master Enhanced ==========
 HTML = """<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lemon ERP v4.4.10 - Vendor Compliance + Docs + Opening Bal + Workflow</title>
+<title>Lemon ERP v4.4.10.1 - Vendor Docs Drag Drop + File Select</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
 <style>
 :root{--green:#1A2E1E;--brass:#C9A86A;--alab:#FAF6F0;--lemon:#F2E863;--line:#E8E0D5;--gray:#F6F5F3}
@@ -750,9 +750,22 @@ input,select,textarea{padding:8px 10px;border-radius:7px;border:1.5px solid var(
 .filter-bar{background:white;border:1.5px solid var(--line);border-radius:10px;padding:10px;margin:10px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:end}
 .search-input{position:relative} .search-input i{position:absolute;left:8px;top:50%;transform:translateY(-50%);color:#888}
 .search-input input{padding-left:28px}
+
+/* v4.4.10.1 Drag & Drop Document Upload Styles - ONLY Vendor Docs */
+.drop-zone{border:2px dashed var(--brass);border-radius:10px;padding:16px;text-align:center;background:#FFFBEB;cursor:pointer;transition:all 0.2s;min-height:90px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px}
+.drop-zone:hover{background:#FFF8E1;border-color:#1A2E1E}
+.drop-zone.dragover{background:#E8F0FE;border-color:#1A2E1E;transform:scale(1.02);box-shadow:0 4px 12px rgba(26,46,30,0.15)}
+.drop-zone i{font-size:28px;color:var(--brass)}
+.drop-zone .dz-title{font-size:11px;font-weight:800;color:#1A2E1E}
+.drop-zone .dz-hint{font-size:9px;color:#888}
+.drop-zone .dz-file{font-size:10px;font-weight:700;color:#1A2E1E;background:white;padding:4px 8px;border-radius:6px;border:1px solid var(--line);margin-top:4px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.drop-zone .dz-clear{font-size:9px;color:#B33;background:none;border:none;cursor:pointer;text-decoration:underline;margin-top:4px}
+.doc-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:700px){.doc-grid{grid-template-columns:1fr}}
+
 </style></head>
 <body>
-<div class="topnav"><div class="brand">🍋 LEMON <span>ERP</span> v4.4.10 - Vendor Compliance + Docs + Opening Bal + Workflow - Base v1.3.py</div><button class="btn btn-y" onclick="location.reload()">Reload</button></div>
+<div class="topnav"><div class="brand">🍋 LEMON <span>ERP</span> v4.4.10.1 - Vendor Docs Drag Drop + File Select - Base v1.3.py</div><button class="btn btn-y" onclick="location.reload()">Reload</button></div>
 <div class="layout">
 <div class="sidebar">
 <h4>MAIN</h4>
@@ -776,7 +789,7 @@ input,select,textarea{padding:8px 10px;border-radius:7px;border:1.5px solid var(
 <div class="content">
 <!-- DASH -->
 <div id="dash" class="tabcontent">
-<div class="card"><h3>Dashboard - v4.4.10 Vendor Compliance Docs Opening Bal Workflow - Single Dropdown - Base v1.3.py</h3>
+<div class="card"><h3>Dashboard - v4.4.10.1 Vendor Docs Drag Drop + File Select - Single Dropdown - Base v1.3.py</h3>
 <div class="row"><div class="card kpi"><div>Total Value</div><div class="val" id="totalVal">Rs 0 Lakh</div></div><div class="card kpi"><div>SBUs</div><div class="val" id="sbuCountDash">0</div></div><div class="card kpi"><div>Products</div><div class="val" id="prodCountDash">0</div></div><div class="card kpi"><div>Categories</div><div class="val" id="catCountDash">0</div></div></div>
 <div class="card"><b>v4.4.10 Changes:</b> ONLY Vendor Master Enhanced - A MSME Cert No+Expiry+Upload GST Reg Type Regular/Composition/Unregistered/SEZ TDS 194C/194J/194Q/194H Rating 1-5 + Last Audit + Docs GST Cert PAN Cheque MSME ISO + B Opening Bal Dr/Cr Ledger Group Sundry Creditors + E Dept + Primary flag + F CreatedBy/At UpdatedBy/At Approval Draft/Pending/Approved/Rejected Last Trans Date Total Business Value - Bank single dropdown fix kept - Nothing removed - Heading + Add Vendor Button top + Filters + Search bar + Auto Code VEND-0001 + Station/State/GST/PAN/TAN/Legal Status/Vendor Category hidden masters + Bank Details Add Bank Account (Bank searchable nationalised banks + Branch/Account Name/IFSC/Account No/Transaction Limit) + Add Contact (Name/Designation hidden master/Mobile/Whatsapp/Land Line/Ext/Email) + PO/GRN counts - Everything else locked to v4.4.8 FIXED</div>
 <div id="alerts"></div>
@@ -870,10 +883,16 @@ input,select,textarea{padding:8px 10px;border-radius:7px;border:1.5px solid var(
 <div class="row"><div>Vendor Rating 1-5 stars<select id="vend_rating"><option value="0">0 - Not Rated</option><option value="1">1★ - Poor</option><option value="2">2★ - Average</option><option value="3">3★ - Good</option><option value="4">4★ - Very Good</option><option value="5">5★ - Excellent</option></select></div><div>Last Audit Date<input type="date" id="vend_last_audit"></div></div>
 </div>
 
-<div class="asset-section"><h4>📄 Document Uploads - GST Cert, PAN Card, Cancelled Cheque, MSME Cert, ISO Cert - v4.4.10</h4><p style="font-size:10px;color:#666">Upload as base64 or file name - Stored in documents JSON - {gst_cert, pan_card, cancelled_cheque, msme_cert, iso_cert} - For now paste file path or base64 string - Future version will have real file upload</p>
-<div class="row"><div>GST Certificate Upload<input id="doc_gst_cert" placeholder="GST Cert file name / base64"></div><div>PAN Card Upload<input id="doc_pan_card" placeholder="PAN Card file name / base64"></div></div>
-<div class="row"><div>Cancelled Cheque Upload<input id="doc_cancelled_cheque" placeholder="Cancelled Cheque file name / base64"></div><div>MSME Certificate Upload<input id="doc_msme_cert" placeholder="MSME Cert file name / base64"></div></div>
-<div class="row"><div>ISO Certificate Upload<input id="doc_iso_cert" placeholder="ISO Cert file name / base64"></div><div>Other Document (if any)<input id="doc_other" placeholder="Other doc"></div></div>
+<div class="asset-section"><h4>📄 Document Uploads - Drag & Drop + File Select - GST, PAN, Cheque, MSME, ISO - v4.4.10.1</h4><p style="font-size:10px;color:#666">Select file from computer - Drag & Drop supported - Stored as base64 in documents JSON - {gst_cert, pan_card, cancelled_cheque, msme_cert, iso_cert, other} - Preview file name + size - Click to select or drag file onto zone - Supports PDF, JPG, PNG</p>
+<div class="doc-grid">
+<div><label style="font-size:10px;font-weight:700">GST Certificate</label><div class="drop-zone" id="dz_gst_cert" onclick="document.getElementById('file_gst_cert').click()" ondragover="handleDragOver(event,'dz_gst_cert')" ondragleave="handleDragLeave(event,'dz_gst_cert')" ondrop="handleDrop(event,'gst_cert')"><i class="bi bi-cloud-arrow-up"></i><div class="dz-title">GST Certificate</div><div class="dz-hint">Click to select file or drag & drop here<br>PDF, JPG, PNG up to 5MB</div><div class="dz-file" id="dz_file_gst_cert" style="display:none"></div><button class="dz-clear" id="dz_clear_gst_cert" style="display:none" onclick="clearDoc('gst_cert',event)">Clear</button></div><input type="file" id="file_gst_cert" hidden accept=".pdf,.jpg,.jpeg,.png" onchange="handleFileSelect(event,'gst_cert')"><input type="hidden" id="doc_gst_cert"><small style="font-size:9px;color:#888" id="doc_gst_cert_info">No file selected - will store base64</small></div>
+<div><label style="font-size:10px;font-weight:700">PAN Card</label><div class="drop-zone" id="dz_pan_card" onclick="document.getElementById('file_pan_card').click()" ondragover="handleDragOver(event,'dz_pan_card')" ondragleave="handleDragLeave(event,'dz_pan_card')" ondrop="handleDrop(event,'pan_card')"><i class="bi bi-card-image"></i><div class="dz-title">PAN Card</div><div class="dz-hint">Click to select or drag & drop<br>PDF, JPG, PNG</div><div class="dz-file" id="dz_file_pan_card" style="display:none"></div><button class="dz-clear" id="dz_clear_pan_card" style="display:none" onclick="clearDoc('pan_card',event)">Clear</button></div><input type="file" id="file_pan_card" hidden accept=".pdf,.jpg,.jpeg,.png" onchange="handleFileSelect(event,'pan_card')"><input type="hidden" id="doc_pan_card"><small style="font-size:9px;color:#888" id="doc_pan_card_info">No file selected</small></div>
+<div><label style="font-size:10px;font-weight:700">Cancelled Cheque</label><div class="drop-zone" id="dz_cancelled_cheque" onclick="document.getElementById('file_cancelled_cheque').click()" ondragover="handleDragOver(event,'dz_cancelled_cheque')" ondragleave="handleDragLeave(event,'dz_cancelled_cheque')" ondrop="handleDrop(event,'cancelled_cheque')"><i class="bi bi-bank"></i><div class="dz-title">Cancelled Cheque</div><div class="dz-hint">Click to select or drag & drop</div><div class="dz-file" id="dz_file_cancelled_cheque" style="display:none"></div><button class="dz-clear" id="dz_clear_cancelled_cheque" style="display:none" onclick="clearDoc('cancelled_cheque',event)">Clear</button></div><input type="file" id="file_cancelled_cheque" hidden accept=".pdf,.jpg,.jpeg,.png" onchange="handleFileSelect(event,'cancelled_cheque')"><input type="hidden" id="doc_cancelled_cheque"><small style="font-size:9px;color:#888" id="doc_cancelled_cheque_info">No file selected</small></div>
+<div><label style="font-size:10px;font-weight:700">MSME Certificate</label><div class="drop-zone" id="dz_msme_cert" onclick="document.getElementById('file_msme_cert').click()" ondragover="handleDragOver(event,'dz_msme_cert')" ondragleave="handleDragLeave(event,'dz_msme_cert')" ondrop="handleDrop(event,'msme_cert')"><i class="bi bi-award"></i><div class="dz-title">MSME Certificate</div><div class="dz-hint">Click to select or drag & drop</div><div class="dz-file" id="dz_file_msme_cert" style="display:none"></div><button class="dz-clear" id="dz_clear_msme_cert" style="display:none" onclick="clearDoc('msme_cert',event)">Clear</button></div><input type="file" id="file_msme_cert" hidden accept=".pdf,.jpg,.jpeg,.png" onchange="handleFileSelect(event,'msme_cert')"><input type="hidden" id="doc_msme_cert"><small style="font-size:9px;color:#888" id="doc_msme_cert_info">No file selected</small></div>
+<div><label style="font-size:10px;font-weight:700">ISO Certificate</label><div class="drop-zone" id="dz_iso_cert" onclick="document.getElementById('file_iso_cert').click()" ondragover="handleDragOver(event,'dz_iso_cert')" ondragleave="handleDragLeave(event,'dz_iso_cert')" ondrop="handleDrop(event,'iso_cert')"><i class="bi bi-patch-check"></i><div class="dz-title">ISO Certificate</div><div class="dz-hint">Click to select or drag & drop</div><div class="dz-file" id="dz_file_iso_cert" style="display:none"></div><button class="dz-clear" id="dz_clear_iso_cert" style="display:none" onclick="clearDoc('iso_cert',event)">Clear</button></div><input type="file" id="file_iso_cert" hidden accept=".pdf,.jpg,.jpeg,.png" onchange="handleFileSelect(event,'iso_cert')"><input type="hidden" id="doc_iso_cert"><small style="font-size:9px;color:#888" id="doc_iso_cert_info">No file selected</small></div>
+<div><label style="font-size:10px;font-weight:700">Other Document</label><div class="drop-zone" id="dz_other" onclick="document.getElementById('file_other').click()" ondragover="handleDragOver(event,'dz_other')" ondragleave="handleDragLeave(event,'dz_other')" ondrop="handleDrop(event,'other')"><i class="bi bi-file-earmark-plus"></i><div class="dz-title">Other Document</div><div class="dz-hint">Click to select or drag & drop - Any file</div><div class="dz-file" id="dz_file_other" style="display:none"></div><button class="dz-clear" id="dz_clear_other" style="display:none" onclick="clearDoc('other',event)">Clear</button></div><input type="file" id="file_other" hidden accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onchange="handleFileSelect(event,'other')"><input type="hidden" id="doc_other"><small style="font-size:9px;color:#888" id="doc_other_info">No file selected</small></div>
+</div>
+<p style="font-size:9px;color:#1A2E1E;background:#F0F8FF;padding:6px;border-radius:6px;margin-top:8px">💡 v4.4.10.1 - Select file from computer with drag & drop - File stored as base64 data URI - Max 5MB per file - Previous version only had text input - Now enhanced with file select + drag drop + preview + clear - No other module changed</p>
 </div>
 
 <div class="asset-section"><h4>💰 Opening Balance + Ledger Group - For Migration - v4.4.10</h4>
@@ -1146,6 +1165,80 @@ function getDepartmentOptions(selected){
  return h;
 }
 
+// v4.4.10.1 Drag & Drop Document Upload - ONLY Vendor Docs - File Select from Computer
+function handleDragOver(e, zoneId){
+ e.preventDefault(); e.stopPropagation();
+ document.getElementById(zoneId).classList.add('dragover');
+}
+function handleDragLeave(e, zoneId){
+ e.preventDefault(); e.stopPropagation();
+ document.getElementById(zoneId).classList.remove('dragover');
+}
+function handleDrop(e, docType){
+ e.preventDefault(); e.stopPropagation();
+ document.getElementById('dz_'+docType).classList.remove('dragover');
+ let files=e.dataTransfer.files;
+ if(files.length>0) processVendorDocFile(files[0], docType);
+}
+function handleFileSelect(e, docType){
+ let file=e.target.files[0];
+ if(file) processVendorDocFile(file, docType);
+}
+function processVendorDocFile(file, docType){
+ if(file.size>5*1024*1024) return alert('File too large - Max 5MB - Selected: '+(file.size/1024/1024).toFixed(2)+'MB');
+ let reader=new FileReader();
+ reader.onload=function(ev){
+   let base64=ev.target.result;
+   document.getElementById('doc_'+docType).value=base64;
+   let fileDiv=document.getElementById('dz_file_'+docType);
+   let infoDiv=document.getElementById('doc_'+docType+'_info');
+   let clearBtn=document.getElementById('dz_clear_'+docType);
+   fileDiv.style.display='block';
+   fileDiv.innerHTML=`📎 ${file.name} (${(file.size/1024).toFixed(1)}KB)`;
+   if(infoDiv) infoDiv.innerHTML=`✅ File ready: ${file.name} - ${base64.substring(0,30)}...`;
+   if(clearBtn) clearBtn.style.display='inline-block';
+   // Update drop zone title to show selected
+   let zone=document.getElementById('dz_'+docType);
+   zone.style.borderColor='#1A2E1E';
+   zone.style.background='#F6FFF6';
+ };
+ reader.readAsDataURL(file);
+}
+function clearDoc(docType, e){
+ if(e){ e.preventDefault(); e.stopPropagation(); }
+ document.getElementById('doc_'+docType).value='';
+ let fileInput=document.getElementById('file_'+docType);
+ if(fileInput) fileInput.value='';
+ let fileDiv=document.getElementById('dz_file_'+docType);
+ let infoDiv=document.getElementById('doc_'+docType+'_info');
+ let clearBtn=document.getElementById('dz_clear_'+docType);
+ if(fileDiv){ fileDiv.style.display='none'; fileDiv.innerHTML=''; }
+ if(infoDiv) infoDiv.innerHTML='No file selected - will store base64';
+ if(clearBtn) clearBtn.style.display='none';
+ let zone=document.getElementById('dz_'+docType);
+ if(zone){ zone.style.borderColor='var(--brass)'; zone.style.background='#FFFBEB'; }
+}
+function setDocFromExisting(docType, base64Value){
+ // Called during edit - if base64 exists, show preview
+ if(!base64Value) return;
+ document.getElementById('doc_'+docType).value=base64Value;
+ let fileDiv=document.getElementById('dz_file_'+docType);
+ let infoDiv=document.getElementById('doc_'+docType+'_info');
+ let clearBtn=document.getElementById('dz_clear_'+docType);
+ if(fileDiv){
+   fileDiv.style.display='block';
+   // Try to extract file name from base64 if it's just file name
+   if(base64Value.startsWith('data:')){
+     fileDiv.innerHTML=`📎 Existing file loaded (${(base64Value.length/1024).toFixed(1)}KB base64)`;
+   } else {
+     fileDiv.innerHTML=`📎 ${base64Value}`;
+   }
+ }
+ if(infoDiv) infoDiv.innerHTML=`✅ Loaded: ${base64Value.substring(0,40)}...`;
+ if(clearBtn) clearBtn.style.display='inline-block';
+}
+
+
 function addVendorBankField(data=null){
  let c=document.getElementById('vendorBanksContainer'); if(c.innerHTML.includes('No bank accounts')) c.innerHTML='';
  let id=`vbank_${Date.now()}_${Math.floor(Math.random()*9999)}`;
@@ -1169,7 +1262,15 @@ function openAddVendorPopup(){
  document.getElementById('vendorModal').classList.remove('hidden');
  document.getElementById('vend_id').value=''; document.getElementById('vend_name').value=''; document.getElementById('vend_station').value=''; document.getElementById('vend_address').value=''; document.getElementById('vend_state').value=''; document.getElementById('vend_gst').value=''; document.getElementById('vend_pan').value=''; document.getElementById('vend_tan').value=''; document.getElementById('vend_legal_status').value=''; document.getElementById('vend_legal_status_sel').value=''; document.getElementById('vend_category').value=''; document.getElementById('vend_category_sel').value=''; document.getElementById('vend_code_preview').value=''; document.getElementById('vend_status').value='Active';
  document.getElementById('vend_msme_no').value=''; document.getElementById('vend_msme_expiry').value=''; document.getElementById('vend_msme_upload').value=''; document.getElementById('vend_gst_reg_type').value='Regular'; document.getElementById('vend_tds_section').value='194C'; document.getElementById('vend_rating').value='0'; document.getElementById('vend_last_audit').value='';
- document.getElementById('doc_gst_cert').value=''; document.getElementById('doc_pan_card').value=''; document.getElementById('doc_cancelled_cheque').value=''; document.getElementById('doc_msme_cert').value=''; document.getElementById('doc_iso_cert').value=''; document.getElementById('doc_other').value='';
+ // v4.4.10.1 clear doc file inputs + drop zones
+ ['gst_cert','pan_card','cancelled_cheque','msme_cert','iso_cert','other'].forEach(dt=>{
+   let hid=document.getElementById('doc_'+dt); if(hid) hid.value='';
+   let fileIn=document.getElementById('file_'+dt); if(fileIn) fileIn.value='';
+   let fileDiv=document.getElementById('dz_file_'+dt); if(fileDiv){ fileDiv.style.display='none'; fileDiv.innerHTML=''; }
+   let infoDiv=document.getElementById('doc_'+dt+'_info'); if(infoDiv) infoDiv.innerHTML='No file selected - will store base64';
+   let clearBtn=document.getElementById('dz_clear_'+dt); if(clearBtn) clearBtn.style.display='none';
+   let zone=document.getElementById('dz_'+dt); if(zone){ zone.style.borderColor=''; zone.style.background=''; zone.classList.remove('dragover'); }
+ });
  document.getElementById('vend_opening_bal').value=''; document.getElementById('vend_opening_type').value='Dr'; document.getElementById('vend_ledger_group').value='Sundry Creditors'; document.getElementById('vend_total_business').value=''; document.getElementById('vend_approval_status').value='Draft'; document.getElementById('vend_created_by').value='Admin'; document.getElementById('vend_updated_by').value='Admin'; document.getElementById('vend_last_trans').value='';
  document.getElementById('vendorBanksContainer').innerHTML='<p style="text-align:center;color:#888;padding:12px">No bank accounts - Click Add Bank Account Button</p>';
  document.getElementById('vendorContactsContainer').innerHTML='<p style="text-align:center;color:#888;padding:12px">No contacts - Click Add Contact Button</p>';
@@ -1299,6 +1400,14 @@ async function editVendor(id){
    document.getElementById('vend_tds_section').value=v.tds_section||'194C';
    document.getElementById('vend_rating').value=v.vendor_rating||0;
    document.getElementById('vend_last_audit').value=v.last_audit_date||'';
+   // v4.4.10.1 - Set docs with drag-drop preview
+   setDocFromExisting('gst_cert', v.documents?.gst_cert||'');
+   setDocFromExisting('pan_card', v.documents?.pan_card||'');
+   setDocFromExisting('cancelled_cheque', v.documents?.cancelled_cheque||'');
+   setDocFromExisting('msme_cert', v.documents?.msme_cert||'');
+   setDocFromExisting('iso_cert', v.documents?.iso_cert||'');
+   setDocFromExisting('other', v.documents?.other||'');
+   // Also keep hidden inputs for backward compat
    document.getElementById('doc_gst_cert').value=v.documents?.gst_cert||'';
    document.getElementById('doc_pan_card').value=v.documents?.pan_card||'';
    document.getElementById('doc_cancelled_cheque').value=v.documents?.cancelled_cheque||'';
