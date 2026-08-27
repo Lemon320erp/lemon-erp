@@ -1,4 +1,3 @@
-
 """
 LEMON ERP - MASTER WORKFLOW - v4.4.7
 BASE: v4.4.6 = v4.4.3 Products refined + SBUs final
@@ -20,7 +19,10 @@ import json, os, re
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'lemon-erp-v44-7-sbus-fixed-tabular-duplicate'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///lemon_erp_v44_1_category.db'
+# Render persistent path - uses /tmp if no disk attached
+db_path = os.environ.get('DATABASE_PATH', os.path.join(os.path.dirname(__file__), '..', 'instance', 'lemon_erp_v44_1_category.db'))
+os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.abspath(db_path)}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
@@ -307,7 +309,7 @@ def sbu_list():
                 except: raw=[]
                 for it in raw:
                     prod=all_prods.get(it.get('product_id'))
-                    pcs.append({'product_id':it.get('product_id'),'product_name':prod.name if prod else f"ID {it.get('product_id")}', 'product_code':prod.product_code if prod else '', 'capacity_per_day': it.get('capacity_per_day') or it.get('capacity') or 0, 'capacity': it.get('capacity_per_day') or 0})
+                    pcs.append({'product_id':it.get('product_id'),'product_name':prod.name if prod else f"ID {it.get('product_id')}", 'product_code': getattr(prod, 'product_code', '') if prod else '', 'capacity_per_day': it.get('capacity_per_day') or it.get('capacity') or 0, 'capacity': it.get('capacity_per_day') or 0})
                 return {'id':k.id,'kiln_no':k.kiln_no,'lining_installation_date':k.lining_installation_date,'lining_date':k.lining_installation_date,'health_status':k.health_status,'products_capacity':pcs,'products_capacity_raw':k.products_capacity}
             def res_sz(sp):
                 try: raw=json.loads(sp.products_capacity) if sp.products_capacity else []
@@ -315,7 +317,7 @@ def sbu_list():
                 pcs=[]
                 for it in raw:
                     prod=all_prods.get(it.get('product_id'))
-                    pcs.append({'product_id':it.get('product_id'),'product_name':prod.name if prod else f"ID {it.get('product_id")}', 'product_code':prod.product_code if prod else '', 'capacity_per_hour':it.get('capacity_per_hour') or it.get('capacity') or 0, 'capacity':it.get('capacity_per_hour') or 0, 'machineries':it.get('machineries','')})
+                    pcs.append({'product_id':it.get('product_id'),'product_name':prod.name if prod else f"ID {it.get('product_id')}", 'product_code': getattr(prod, 'product_code', '') if prod else '', 'capacity_per_hour':it.get('capacity_per_hour') or it.get('capacity') or 0, 'capacity':it.get('capacity_per_hour') or 0, 'machineries':it.get('machineries','')})
                 return {'id':sp.id,'plant_no':sp.plant_no,'products_capacity':pcs,'products_capacity_raw':sp.products_capacity,'machineries':sp.machineries}
             def res_hy(h):
                 try: raw=json.loads(h.products_capacity) if h.products_capacity else []
@@ -323,7 +325,7 @@ def sbu_list():
                 pcs=[]
                 for it in raw:
                     prod=all_prods.get(it.get('product_id'))
-                    pcs.append({'product_id':it.get('product_id'),'product_name':prod.name if prod else '', 'product_code':prod.product_code if prod else '', 'capacity_per_hour':it.get('capacity_per_hour') or 0, 'machineries':it.get('machineries','')})
+                    pcs.append({'product_id':it.get('product_id'),'product_name':prod.name if prod else '', 'product_code': getattr(prod, 'product_code', '') if prod else '', 'capacity_per_hour':it.get('capacity_per_hour') or 0, 'machineries':it.get('machineries','')})
                 return {'id':h.id,'plant_no':h.plant_no,'products_capacity':pcs,'products_capacity_raw':h.products_capacity,'machineries':h.machineries}
             def res_y(y):
                 try: raw=json.loads(y.yard_items) if y.yard_items else []
@@ -331,7 +333,7 @@ def sbu_list():
                 items=[]
                 for it in raw:
                     prod=all_prods.get(it.get('product_id'))
-                    items.append({'product_id':it.get('product_id'),'product_name':prod.name if prod else '', 'product_code':prod.product_code if prod else '', 'opening_stock':it.get('opening_stock') or it.get('opening') or 0})
+                    items.append({'product_id':it.get('product_id'),'product_name':prod.name if prod else '', 'product_code': getattr(prod, 'product_code', '') if prod else '', 'opening_stock':it.get('opening_stock') or it.get('opening') or 0})
                 return {'id':y.id,'yard_name':y.yard_name,'yard_items':items,'yard_items_raw':y.yard_items}
             out.append({'id':s.id,'sbu_name':s.sbu_name,'address':s.address,'kilns':[res_k(k) for k in kilns],'sizing_plants':[res_sz(sp) for sp in sizings],'hydration_plants':[res_hy(h) for h in hydrations],'stock_yards':[res_y(y) for y in yards]})
         return jsonify(out)
