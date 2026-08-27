@@ -39,7 +39,7 @@ from datetime import datetime
 import json, os, re
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'lemon-erp-v45-po-module'
+app.config['SECRET_KEY'] = 'lemon-erp-v45-po-module-fixed'
 db_path = os.environ.get('DATABASE_PATH', os.path.join(os.path.dirname(__file__), '..', 'instance', 'lemon_erp_v44_1_category.db'))
 os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
 app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.abspath(db_path)}'
@@ -215,28 +215,24 @@ class MO(db.Model):
 class PO(db.Model):
     __tablename__ = 'po'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    # Header
-    po_no = db.Column(db.String(100), unique=True)  # PO/26-27/PRODUCTNAME/0001
-    rfq_no = db.Column(db.String(100), default='')  # future
+    # Header - v4.5
+    po_no = db.Column(db.String(100), unique=True)
+    rfq_no = db.Column(db.String(100), default='')
     po_date = db.Column(db.String(20), default=lambda: datetime.now().strftime('%Y-%m-%d'))
-    po_validity = db.Column(db.String(20), default='')  # date
-    po_type = db.Column(db.String(50), default='Raw Material')  # Raw Material, Consumables, CAPEX, Packing, Services, Others
+    po_validity = db.Column(db.String(20), default='')
+    po_type = db.Column(db.String(50), default='Raw Material')
     sbu_id = db.Column(db.Integer, db.ForeignKey('sbu.id'), nullable=True)
     sbu_name = db.Column(db.String(100), default='')
     delivery_address = db.Column(db.Text, default='')
     billing_address = db.Column(db.Text, default='')
     same_as_delivery = db.Column(db.Boolean, default=True)
-    # Product filter for auto fill
     product_id = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=True)
     product_name_filter = db.Column(db.String(100), default='')
-    # Vendor
     vendor = db.Column(db.String(100))
     vendor_id = db.Column(db.Integer, db.ForeignKey('vendor.id'), nullable=True)
     vendor_code = db.Column(db.String(50), default='')
     vendor_state = db.Column(db.String(100), default='')
-    # Line items JSON: [{product_id, product_code, product_name, hsn_code, spec, uom, qty 3dec, rate 2dec, gst_percent, amount, cgst, sgst, igst, tax_amount, total}]
     items = db.Column(db.Text, default='[]')
-    # Totals
     taxable_value = db.Column(db.Float, default=0)
     cgst_amount = db.Column(db.Float, default=0)
     sgst_amount = db.Column(db.Float, default=0)
@@ -244,27 +240,22 @@ class PO(db.Model):
     freight_amount = db.Column(db.Float, default=0)
     round_off = db.Column(db.Float, default=0)
     grand_total = db.Column(db.Float, default=0)
-    # Old compatibility fields for Vendor Business Value calc
     material = db.Column(db.String(100))
     qty = db.Column(db.Float, default=0)
     rate = db.Column(db.Float, default=0)
     unit = db.Column(db.String(100))
-    # Delivery & Terms
-    delivery_type = db.Column(db.String(50), default='One Time')  # Partial, One Time, As per schedule
+    delivery_type = db.Column(db.String(50), default='One Time')
     delivery_schedule = db.Column(db.Text, default='')
-    payment_terms_days = db.Column(db.Integer, default=0)  # days
-    rate_basis = db.Column(db.String(50), default='FOR')  # Ex-factory, FOR, Delivered, FOB, Ex-Works
+    payment_terms_days = db.Column(db.Integer, default=0)
+    rate_basis = db.Column(db.String(50), default='FOR')
     freight_terms = db.Column(db.String(100), default='')
-    tds_applicable = db.Column(db.String(20), default='Not Applicable')  # Applicable / Not Applicable
+    tds_applicable = db.Column(db.String(20), default='Not Applicable')
     tds_percent = db.Column(db.Float, default=0)
-    rcm_applicable = db.Column(db.String(20), default='No')  # Yes/No
+    rcm_applicable = db.Column(db.String(20), default='No')
     rcm_percent = db.Column(db.Float, default=0)
-    # Documents drag-drop base64 JSON {po_doc, freight_slip, other}
     documents = db.Column(db.Text, default='{}')
-    # Approval workflow Draft -> Pending -> Approved -> Sent to Vendor -> Partially Received -> Closed
     status = db.Column(db.String(50), default='Draft')
     approval_status = db.Column(db.String(50), default='Draft')
-    # Audit
     created_by = db.Column(db.String(100), default='Admin')
     created_at = db.Column(db.String(30), default=lambda: datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
     updated_by = db.Column(db.String(100), default='Admin')
@@ -305,6 +296,34 @@ class QRBag(db.Model):
 
 with app.app_context():
     db.create_all()
+    # v4.5 Fix: Safe migration for PO table - if old schema exists, add missing columns
+    try:
+        from sqlalchemy import inspect, text
+        inspector=inspect(db.engine)
+        if 'po' in inspector.get_table_names():
+            cols=[c['name'] for c in inspector.get_columns('po')]
+            # If new columns missing, add them via ALTER TABLE
+            missing=[]
+            for col_name, col_type in [('po_no','VARCHAR(100)'),('rfq_no','VARCHAR(100)'),('po_date','VARCHAR(20)'),('po_validity','VARCHAR(20)'),('po_type','VARCHAR(50)'),('sbu_id','INTEGER'),('sbu_name','VARCHAR(100)'),('delivery_address','TEXT'),('billing_address','TEXT'),('same_as_delivery','BOOLEAN'),('product_id','INTEGER'),('product_name_filter','VARCHAR(100)'),('vendor_code','VARCHAR(50)'),('vendor_state','VARCHAR(100)'),('items','TEXT'),('taxable_value','FLOAT'),('cgst_amount','FLOAT'),('sgst_amount','FLOAT'),('igst_amount','FLOAT'),('freight_amount','FLOAT'),('round_off','FLOAT'),('grand_total','FLOAT'),('delivery_type','VARCHAR(50)'),('delivery_schedule','TEXT'),('payment_terms_days','INTEGER'),('rate_basis','VARCHAR(50)'),('freight_terms','VARCHAR(100)'),('tds_applicable','VARCHAR(20)'),('tds_percent','FLOAT'),('rcm_applicable','VARCHAR(20)'),('rcm_percent','FLOAT'),('documents','TEXT'),('approval_status','VARCHAR(50)'),('created_by','VARCHAR(100)'),('updated_by','VARCHAR(100)'),('updated_at','VARCHAR(30)')]:
+                if col_name not in cols:
+                    missing.append((col_name,col_type))
+            if missing:
+                print(f"v4.5 Migration: Adding missing columns to PO table: {missing}")
+                with db.engine.connect() as conn:
+                    for col_name, col_type in missing:
+                        try:
+                            conn.execute(text(f"ALTER TABLE po ADD COLUMN {col_name} {col_type}"))
+                            conn.commit()
+                        except Exception as e:
+                            print(f"Failed to add {col_name}: {e}")
+                    # For po_no unique, set default for existing rows
+                    try:
+                        conn.execute(text("UPDATE po SET po_no = 'PO/26-27/PRODUCT/0001' WHERE po_no IS NULL"))
+                        conn.commit()
+                    except:
+                        pass
+    except Exception as e:
+        print(f"v4.5 Migration check failed: {e}")
     # Seed hidden masters if empty
     if LegalStatusMaster.query.count()==0:
         for name in ["Proprietor","Partnership","LLP","Private Limited","Public Limited","HUF","Trust","Society","Government","OPC","One Person Company","Co-operative Society","Others"]:
@@ -716,7 +735,6 @@ def mo_total(): return jsonify(total=MO.query.count())
 @app.route('/api/po', methods=['GET','POST'])
 def po_api():
     if request.method=='GET':
-        # Filters
         search=(request.args.get('search') or '').strip().lower()
         po_type=request.args.get('po_type','')
         status_f=request.args.get('status','')
@@ -733,7 +751,6 @@ def po_api():
                 docs=json.loads(p.documents) if p.documents else {}
             except:
                 docs={}
-            # Search filter
             if search and not (search in (p.po_no or '').lower() or search in (p.vendor or '').lower() or search in (p.sbu_name or '').lower() or search in (p.po_type or '').lower() or search in (p.rfq_no or '').lower()):
                 continue
             if po_type and p.po_type!=po_type: continue
@@ -753,13 +770,10 @@ def po_api():
                 'documents':docs,'has_docs':len([v for v in docs.values() if v])>0,
                 'status':p.status,'approval_status':p.approval_status,
                 'created_by':p.created_by,'created_at':p.created_at,'updated_by':p.updated_by,'updated_at':p.updated_at,
-                # Old fields for vendor business value
                 'material':p.material,'qty':p.qty,'rate':p.rate
             })
         return jsonify(result)
-    # POST - Create PO
     data=request.get_json() or {}
-    # Mandatory: SBU, Vendor, Product filter, Items
     sbu_id=data.get('sbu_id')
     if not sbu_id: return jsonify(error='SBU mandatory'),400
     sbu=SBU.query.get(sbu_id)
@@ -770,20 +784,15 @@ def po_api():
     if not vendor: return jsonify(error='Vendor not found'),400
     items=data.get('items') or []
     if not items or len(items)==0: return jsonify(error='Add at least one line item'),400
-    # PO No generation: FY + Product Name (first product or filter product)
     po_date=data.get('po_date') or datetime.now().strftime('%Y-%m-%d')
     fy=get_financial_year(po_date)
-    # Product name for PO No: use product_name_filter or first item product_name
     prod_name_for_code=data.get('product_name_filter') or (items[0].get('product_name') if items else 'PRODUCT')
-    # Find seq: count POs with same FY and product name sanitized
     prod_sanitized=sanitize_product_name_for_po(prod_name_for_code)
-    # Count existing POs with same FY and product sanitized in po_no
     existing_count=PO.query.filter(PO.po_no.like(f"PO/{fy}/{prod_sanitized}/%")).count()+1
     po_no=generate_po_no(fy, prod_name_for_code, existing_count)
     while PO.query.filter_by(po_no=po_no).first():
         existing_count+=1
         po_no=generate_po_no(fy, prod_name_for_code, existing_count)
-    # Calculate totals
     taxable=0
     cgst_total=0
     sgst_total=0
@@ -794,11 +803,7 @@ def po_api():
         gst_percent=float(it.get('gst_percent') or 0)
         amt=qty*rate
         taxable+=amt
-        # GST breakup based on vendor state vs SBU state (approx: use vendor state vs delivery SBU name contains state?)
-        # For now if vendor_state == sbu_name state check - we store vendor_state, we approximate same state if vendor_state in sbu_name or delivery_address
-        # Frontend will send gst_type: intra/inter
-        gst_type=it.get('gst_type','intra' if (vendor.state and sbu.sbu_name and vendor.state.lower() in sbu.sbu_name.lower()) or (vendor.state and data.get('delivery_address','') and vendor.state.lower() in data.get('delivery_address','').lower()) else 'inter')
-        # If same state intra -> CGST+SGST
+        gst_type=it.get('gst_type','inter')
         if gst_type=='intra':
             cgst=amt*gst_percent/100/2
             sgst=amt*gst_percent/100/2
@@ -898,7 +903,6 @@ def po_one(pid):
                 p.vendor_state=vendor.state or p.vendor_state
         items=data.get('items')
         if items is not None:
-            # Recalc totals
             taxable=0
             cgst_total=0
             sgst_total=0
@@ -972,7 +976,6 @@ def po_one(pid):
 
 @app.route('/api/po/rate_history', methods=['GET'])
 def po_rate_history():
-    # Query: vendor_id and product_id or product_name
     vendor_id=request.args.get('vendor_id')
     product_id=request.args.get('product_id')
     product_name=request.args.get('product_name','').lower()
@@ -1014,7 +1017,6 @@ def po_duplicate(pid):
         docs=json.loads(p.documents) if p.documents else {}
     except:
         docs={}
-    # New PO No
     fy=get_financial_year(p.po_date)
     prod_name=p.product_name_filter or 'PRODUCT'
     prod_sanitized=sanitize_product_name_for_po(prod_name)
@@ -1189,7 +1191,7 @@ input,select,textarea{padding:8px 10px;border-radius:7px;border:1.5px solid var(
 <div class="content">
 <!-- DASH -->
 <div id="dash" class="tabcontent">
-<div class="card"><h3>Dashboard - v4.5 PO Module - Masters Locked - Single Dropdown - Base v1.3.py</h3>
+<div class="card"><h3>Dashboard - v4.5 PO Module Fixed - Masters Locked - Single Dropdown - Base v1.3.py</h3>
 <div class="row"><div class="card kpi"><div>Total Value</div><div class="val" id="totalVal">Rs 0 Lakh</div></div><div class="card kpi"><div>SBUs</div><div class="val" id="sbuCountDash">0</div></div><div class="card kpi"><div>Products</div><div class="val" id="prodCountDash">0</div></div><div class="card kpi"><div>Categories</div><div class="val" id="catCountDash">0</div></div></div>
 <div class="card"><b>v4.4.10 Changes:</b> ONLY Vendor Master Enhanced - A MSME Cert No+Expiry+Upload GST Reg Type Regular/Composition/Unregistered/SEZ TDS 194C/194J/194Q/194H Rating 1-5 + Last Audit + Docs GST Cert PAN Cheque MSME ISO + B Opening Bal Dr/Cr Ledger Group Sundry Creditors + E Dept + Primary flag + F CreatedBy/At UpdatedBy/At Approval Draft/Pending/Approved/Rejected Last Trans Date Total Business Value - Bank single dropdown fix kept - Nothing removed - Heading + Add Vendor Button top + Filters + Search bar + Auto Code VEND-0001 + Station/State/GST/PAN/TAN/Legal Status/Vendor Category hidden masters + Bank Details Add Bank Account (Bank searchable nationalised banks + Branch/Account Name/IFSC/Account No/Transaction Limit) + Add Contact (Name/Designation hidden master/Mobile/Whatsapp/Land Line/Ext/Email) + PO/GRN counts - Everything else locked to v4.4.8 FIXED</div>
 <div id="alerts"></div>
@@ -1243,13 +1245,12 @@ input,select,textarea{padding:8px 10px;border-radius:7px;border:1.5px solid var(
 <!-- STOCK etc -->
 <div id="stock" class="tabcontent hidden"><div class="card"><h3>Stock - v4.4 Unchanged</h3><div class="row"><select id="fUnit"><option>All Units</option><option>Unit 1 72MT</option><option>Unit 2 84MT</option><option>Unit 3 125MT</option></select><button class="btn btn-g" onclick="loadStock()">Filter</button></div><div id="rawTbl"></div><div id="wipTbl"></div><div id="finTbl"></div></div></div>
 <div id="make" class="tabcontent hidden"><div class="card"><h3>Make</h3><p>Make module v4.4 Unchanged</p><div id="moList"></div></div></div>
-<!-- BUY - PURCHASE ORDER MODULE v4.5 - ONLY PO MODULE CHANGED, MASTERS LOCKED -->
+<!-- BUY - PURCHASE ORDER MODULE v4.5 FIXED - ONLY PO MODULE CHANGED, MASTERS LOCKED -->
 <div id="buy" class="tabcontent hidden">
 <div class="card" style="text-align:center;padding:24px">
 <h1 style="font-size:26px;font-weight:900;margin:0 0 6px;text-align:center"><i class="bi bi-cart"></i> Purchase Orders</h1>
 <button class="btn btn-y" style="padding:14px 36px;font-size:15px;font-weight:800" onclick="openAddPOPopup()">Add Purchase Order</button>
 </div>
-
 <div class="filter-bar">
 <div class="search-input" style="flex:2;min-width:200px"><i class="bi bi-search"></i><input id="poSearch" placeholder="Search PO No, Vendor, SBU, Product, RFQ..." onkeyup="loadPOs()"></div>
 <div style="flex:1;min-width:120px"><label style="font-size:10px;font-weight:700">PO Type</label><select id="poTypeFilter" onchange="loadPOs()"><option value="">All Types</option><option value="Raw Material">Raw Material</option><option value="Consumables">Consumables</option><option value="CAPEX">CAPEX</option><option value="Packing">Packing</option><option value="Services">Services</option><option value="Others">Others</option></select></div>
@@ -1258,8 +1259,7 @@ input,select,textarea{padding:8px 10px;border-radius:7px;border:1.5px solid var(
 <div style="flex:1;min-width:120px"><label style="font-size:10px;font-weight:700">Vendor</label><select id="poVendorFilter" onchange="loadPOs()"><option value="">All Vendors</option></select></div>
 <div style="display:flex;gap:6px;align-items:end"><button class="btn btn-g" onclick="loadPOs()">Filter</button><button class="btn btn-w" onclick="resetPOFilters()">Reset</button></div>
 </div>
-
-<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h3>PO List - PO/26-27/PRODUCT/0001 + GST Breakup + Freight + Validity - v4.5</h3><span id="poCountBadge" class="badge brass">0 POs</span></div>
+<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h3>PO List - PO/26-27/PRODUCT/0001 + GST Breakup + Freight + Validity - v4.5 Fixed</h3><span id="poCountBadge" class="badge brass">0 POs</span></div>
 <div style="overflow-x:auto"><table><thead><tr><th>#</th><th>PO No | Date | Validity</th><th>SBU | Delivery | Billing</th><th>Vendor | Rating | State</th><th>Type | Items | Qty</th><th>Taxable | CGST+SGST/IGST | Freight | Grand Total</th><th>Delivery Type | Schedule | Payment Days | Rate Basis | TDS/RCM</th><th>Docs | Status | Created</th><th>Actions</th></tr></thead><tbody id="poTbl"></tbody></table></div>
 </div>
 </div>
@@ -1331,47 +1331,40 @@ input,select,textarea{padding:8px 10px;border-radius:7px;border:1.5px solid var(
 
 </div><div class="modal-footer"><button class="btn btn-g" style="flex:1;padding:14px;font-size:13px" onclick="saveVendor()">Save Vendor - v4.4.10 Compliance + Docs + Opening + Workflow</button><button class="btn btn-w" onclick="closeAddVendorPopup()">Cancel</button></div></div></div>
 
-<!-- PO MODAL v4.5 - PURCHASE ORDER - ONLY PO MODULE -->
-<div id="poModal" class="modal hidden" onclick="if(event.target===this) closeAddPOPopup()"><div class="modal-content" style="max-width:1300px"><div class="modal-header"><b>Add Purchase Order - PO/26-27/PRODUCT/0001 Auto + Line Items + GST Breakup + Docs Drag Drop - v4.5 Masters Locked</b><button class="close-x" onclick="closeAddPOPopup()">×</button></div><div class="modal-body">
+<!-- PO MODAL v4.5 FIXED - PURCHASE ORDER - ONLY PO MODULE -->
+<div id="poModal" class="modal hidden" onclick="if(event.target===this) closeAddPOPopup()"><div class="modal-content" style="max-width:1300px"><div class="modal-header"><b>Add Purchase Order - PO/26-27/PRODUCT/0001 Auto + Line Items + GST Breakup + Docs Drag Drop - v4.5 Fixed Masters Locked</b><button class="close-x" onclick="closeAddPOPopup()">×</button></div><div class="modal-body">
 <input type="hidden" id="po_id">
 <div class="form-box" style="background:#FFFBEB;border:2px solid var(--brass)"><b>PO Header - RFQ + PO No + Date + Validity + SBU + Billing + Product + Vendor - v4.5</b>
 <div class="row"><div>RFQ No. (for future workflow - keep blank)<input id="po_rfq_no" placeholder="RFQ No. e.g. RFQ/26-27/0001 - Future use"></div><div>PO No - Auto Generated (PO/FY/PRODUCT/SEQ without spaces)<input id="po_no_preview" disabled style="background:var(--alab);font-weight:800" placeholder="PO/26-27/PRODUCTNAME/0001 Auto when saved"></div></div>
 <div class="row"><div>PO Date - Default today auto editable<input type="date" id="po_date"></div><div>PO Validity - Date format<input type="date" id="po_validity"></div></div>
-<div class="row"><div>PO Type - Raw Material etc<select id="po_type" onchange="filterProductsByPOType()"><option value="Raw Material">Raw Material</option><option value="Consumables">Consumables</option><option value="CAPEX">CAPEX</option><option value="Packing">Packing</option><option value="Services">Services</option><option value="Others">Others</option></select><p style="font-size:9px;color:#888">Raw for GRN purpose</p></div><div>SBU - Delivery Location - Dropdown from SBUs<select id="po_sbu" onchange="onSBUChange()"></select><p style="font-size:9px;color:#888">Pick from SBUs for delivery</p></div></div>
+<div class="row"><div>PO Type - Raw Material etc<select id="po_type" onchange="filterProductsByPOType()"><option value="Raw Material">Raw Material</option><option value="Consumables">Consumables</option><option value="CAPEX">CAPEX</option><option value="Packing">Packing</option><option value="Services">Services</option><option value="Others">Others</option></select></div><div>SBU - Delivery Location - Dropdown from SBUs<select id="po_sbu" onchange="onSBUChange()"></select></div></div>
 <div>Delivery Address - Selection from SBU address + Company address<textarea id="po_delivery_address" placeholder="Delivery Address - Auto from SBU, editable"></textarea></div>
 <div><label style="font-size:10px"><input type="checkbox" id="po_same_as_delivery" checked onchange="toggleBillingSame()"> Same as Delivery Address</label></div>
-<div>Billing Address - Selection from dropdown list from SBUs and company address - Option to keep same as delivery<textarea id="po_billing_address" placeholder="Billing Address - Same as delivery if checked"></textarea></div>
-<div class="row"><div>Product - Dropdown list of Products - Raw materials - For auto fill line item<input type="hidden" id="po_product_id"><select id="po_product_filter" onchange="onProductFilterChange()"><option value="">Select Product for auto fill line items</option></select><p style="font-size:9px;color:#888">Select product → line auto filled with Code/Name/HSN/UOM</p></div><div>Vendor Name - Searchable dropdown list of vendors - Shows rating approval station<select id="po_vendor" onchange="onVendorChange()"></select><p style="font-size:9px;color:#888">Searchable - Shows ⭐ rating + approval + station + state</p></div></div>
+<div>Billing Address - Selection from dropdown list from SBUs and company address<textarea id="po_billing_address" placeholder="Billing Address - Same as delivery if checked"></textarea></div>
+<div class="row"><div>Product - Dropdown list of Products - Raw materials - For auto fill line item<input type="hidden" id="po_product_id"><select id="po_product_filter" onchange="onProductFilterChange()"><option value="">Select Product for auto fill line items</option></select></div><div>Vendor Name - Searchable dropdown list of vendors<select id="po_vendor" onchange="onVendorChange()"></select></div></div>
 </div>
-
-<div class="asset-section"><div style="display:flex;justify-content:space-between;align-items:center"><h4>📦 Line Item Details - Add Line Item Button - Product Code Name HSN Spec UOM Qty Rate GST Amount - v4.5</h4><button class="btn btn-y" onclick="addPOLineItem()">Add Line Item</button></div><p style="font-size:10px;color:#666">When clicked add line item row: Product Code pre-selected as per product selected before, Product Name pre-selected, HSN Code pre-selected, Product Specification text auto suggest previous PO from same vendor, UOM pre-selected, PO Quantity 3 decimal, Product Rate 2 decimal, Tax Slab GST% auto fill from product master (if supplier same state as SBU then SGST+CGST else IGST), Amount auto</p><div id="poItemsContainer"><p style="text-align:center;color:#888;padding:12px">No line items - Click Add Line Item Button</p></div></div>
-
-<div class="asset-section"><h4>💰 Totals - Taxable + CGST+SGST/IGST + Freight + Round Off + Grand Total - GST Breakup - v4.5</h4>
-<div class="row"><div>Taxable Value (Auto sum qty*rate)<input id="po_taxable" disabled style="background:var(--alab);font-weight:800"></div><div>CGST Amount (Auto if same state)<input id="po_cgst" disabled style="background:var(--alab)"></div><div>SGST Amount (Auto if same state)<input id="po_sgst" disabled style="background:var(--alab)"></div></div>
-<div class="row"><div>IGST Amount (Auto if different state)<input id="po_igst" disabled style="background:var(--alab)"></div><div>Freight Amount - As per Rate Basis<input type="number" id="po_freight" placeholder="Freight charges - as per rate basis" step="0.01" oninput="recalcPOTotals()"></div><div>Round Off<input type="number" id="po_round_off" placeholder="Round Off" step="0.01" value="0" oninput="recalcPOTotals()"></div></div>
-<div class="row"><div>Grand Total (Taxable+CGST+SGST+IGST+Freight+Round Off)<input id="po_grand_total" disabled style="background:var(--green);color:white;font-weight:900;font-size:14px"></div></div>
+<div class="asset-section"><div style="display:flex;justify-content:space-between;align-items:center"><h4>📦 Line Item Details - Add Line Item Button</h4><button class="btn btn-y" onclick="addPOLineItem()">Add Line Item</button></div><div id="poItemsContainer"><p style="text-align:center;color:#888;padding:12px">No line items - Click Add Line Item Button</p></div></div>
+<div class="asset-section"><h4>💰 Totals</h4>
+<div class="row"><div>Taxable Value<input id="po_taxable" disabled style="background:var(--alab);font-weight:800"></div><div>CGST<input id="po_cgst" disabled style="background:var(--alab)"></div><div>SGST<input id="po_sgst" disabled style="background:var(--alab)"></div></div>
+<div class="row"><div>IGST<input id="po_igst" disabled style="background:var(--alab)"></div><div>Freight Amount<input type="number" id="po_freight" placeholder="Freight" step="0.01" oninput="recalcPOTotals()"></div><div>Round Off<input type="number" id="po_round_off" placeholder="Round Off" step="0.01" value="0" oninput="recalcPOTotals()"></div></div>
+<div class="row"><div>Grand Total<input id="po_grand_total" disabled style="background:var(--green);color:white;font-weight:900;font-size:14px"></div></div>
 </div>
-
-<div class="asset-section"><h4>🚚 Delivery & Commercial Terms - Delivery Type Schedule Payment Terms Rate Basis TDS RCM - v4.5</h4>
-<div class="row"><div>Delivery Type - Partial One Time etc<select id="po_delivery_type"><option value="One Time">One Time</option><option value="Partial">Partial</option><option value="As per schedule">As per schedule</option><option value="Immediate">Immediate</option></select></div><div>Delivery Schedule - Text<input id="po_delivery_schedule" placeholder="Delivery schedule e.g. 10 MT per week"></div></div>
-<div class="row"><div>Payment Terms - Numbers (days)<input type="number" id="po_payment_terms" placeholder="Payment Terms days e.g. 30"></div><div>Rate Basis - Ex-factory FOR Delivered FOB etc<select id="po_rate_basis"><option value="FOR">FOR</option><option value="Ex-factory">Ex-factory</option><option value="Delivered">Delivered</option><option value="FOB">FOB</option><option value="Ex-Works">Ex-Works</option></select></div></div>
-<div class="row"><div>Freight Terms<input id="po_freight_terms" placeholder="Freight Terms e.g. Included, Extra, To Pay"></div><div>TDS - Applicable/not applicable<select id="po_tds_applicable"><option value="Not Applicable">Not Applicable</option><option value="Applicable">Applicable</option></select></div><div>TDS %<input type="number" id="po_tds_percent" placeholder="TDS % e.g. 1" step="0.01"></div></div>
-<div class="row"><div>RCM - Reverse Charge Mechanism - Yes/No<select id="po_rcm_applicable"><option value="No">No</option><option value="Yes">Yes</option></select></div><div>RCM %<input type="number" id="po_rcm_percent" placeholder="RCM % e.g. 5" step="0.01"></div></div>
+<div class="asset-section"><h4>🚚 Delivery & Commercial Terms</h4>
+<div class="row"><div>Delivery Type<select id="po_delivery_type"><option value="One Time">One Time</option><option value="Partial">Partial</option><option value="As per schedule">As per schedule</option><option value="Immediate">Immediate</option></select></div><div>Delivery Schedule<input id="po_delivery_schedule" placeholder="e.g. 10 MT per week"></div></div>
+<div class="row"><div>Payment Terms days<input type="number" id="po_payment_terms" placeholder="e.g. 30"></div><div>Rate Basis<select id="po_rate_basis"><option value="FOR">FOR</option><option value="Ex-factory">Ex-factory</option><option value="Delivered">Delivered</option><option value="FOB">FOB</option><option value="Ex-Works">Ex-Works</option></select></div></div>
+<div class="row"><div>Freight Terms<input id="po_freight_terms" placeholder="Included, Extra"></div><div>TDS<select id="po_tds_applicable"><option value="Not Applicable">Not Applicable</option><option value="Applicable">Applicable</option></select></div><div>TDS %<input type="number" id="po_tds_percent" step="0.01"></div></div>
+<div class="row"><div>RCM<select id="po_rcm_applicable"><option value="No">No</option><option value="Yes">Yes</option></select></div><div>RCM %<input type="number" id="po_rcm_percent" step="0.01"></div></div>
 </div>
-
-<div class="asset-section"><h4>📄 PO Document Uploads - Drag & Drop + File Select - Freight Slip + PO Doc - v4.5</h4><p style="font-size:10px;color:#666">Select file from computer - Drag & Drop supported - Stored as base64 - PO document + Freight slip</p>
+<div class="asset-section"><h4>📄 PO Document Uploads - Drag & Drop</h4>
 <div class="doc-grid">
-<div><label style="font-size:10px;font-weight:700">PO Document (PDF)</label><div class="drop-zone" id="dz_po_doc" onclick="document.getElementById('file_po_doc').click()" ondragover="handlePODragOver(event,'dz_po_doc')" ondragleave="handlePODragLeave(event,'dz_po_doc')" ondrop="handlePODrop(event,'po_doc')"><i class="bi bi-file-earmark-pdf"></i><div class="dz-title">PO Document</div><div class="dz-hint">Click to select or drag & drop PDF</div><div class="dz-file" id="dz_file_po_doc" style="display:none"></div><button class="dz-clear" id="dz_clear_po_doc" style="display:none" onclick="clearPODoc('po_doc',event)">Clear</button></div><input type="file" id="file_po_doc" hidden accept=".pdf,.jpg,.jpeg,.png" onchange="handlePOFileSelect(event,'po_doc')"><input type="hidden" id="doc_po_doc"><small style="font-size:9px;color:#888" id="doc_po_doc_info">No file selected</small></div>
-<div><label style="font-size:10px;font-weight:700">Freight Slip / LR Copy</label><div class="drop-zone" id="dz_freight_slip" onclick="document.getElementById('file_freight_slip').click()" ondragover="handlePODragOver(event,'dz_freight_slip')" ondragleave="handlePODragLeave(event,'dz_freight_slip')" ondrop="handlePODrop(event,'freight_slip')"><i class="bi bi-truck"></i><div class="dz-title">Freight Slip</div><div class="dz-hint">Click to select or drag & drop freight slip</div><div class="dz-file" id="dz_file_freight_slip" style="display:none"></div><button class="dz-clear" id="dz_clear_freight_slip" style="display:none" onclick="clearPODoc('freight_slip',event)">Clear</button></div><input type="file" id="file_freight_slip" hidden accept=".pdf,.jpg,.jpeg,.png" onchange="handlePOFileSelect(event,'freight_slip')"><input type="hidden" id="doc_freight_slip"><small style="font-size:9px;color:#888" id="doc_freight_slip_info">No file selected</small></div>
+<div><label style="font-size:10px;font-weight:700">PO Document</label><div class="drop-zone" id="dz_po_doc" onclick="document.getElementById('file_po_doc').click()" ondragover="handlePODragOver(event,'dz_po_doc')" ondragleave="handlePODragLeave(event,'dz_po_doc')" ondrop="handlePODrop(event,'po_doc')"><i class="bi bi-file-earmark-pdf"></i><div class="dz-title">PO Document</div><div class="dz-hint">Click or drag & drop PDF</div><div class="dz-file" id="dz_file_po_doc" style="display:none"></div><button class="dz-clear" id="dz_clear_po_doc" style="display:none" onclick="clearPODoc('po_doc',event)">Clear</button></div><input type="file" id="file_po_doc" hidden accept=".pdf,.jpg,.jpeg,.png" onchange="handlePOFileSelect(event,'po_doc')"><input type="hidden" id="doc_po_doc"><small id="doc_po_doc_info" style="font-size:9px;color:#888">No file</small></div>
+<div><label style="font-size:10px;font-weight:700">Freight Slip</label><div class="drop-zone" id="dz_freight_slip" onclick="document.getElementById('file_freight_slip').click()" ondragover="handlePODragOver(event,'dz_freight_slip')" ondragleave="handlePODragLeave(event,'dz_freight_slip')" ondrop="handlePODrop(event,'freight_slip')"><i class="bi bi-truck"></i><div class="dz-title">Freight Slip</div><div class="dz-hint">Click or drag & drop</div><div class="dz-file" id="dz_file_freight_slip" style="display:none"></div><button class="dz-clear" id="dz_clear_freight_slip" style="display:none" onclick="clearPODoc('freight_slip',event)">Clear</button></div><input type="file" id="file_freight_slip" hidden accept=".pdf,.jpg,.jpeg,.png" onchange="handlePOFileSelect(event,'freight_slip')"><input type="hidden" id="doc_freight_slip"><small id="doc_freight_slip_info" style="font-size:9px;color:#888">No file</small></div>
 </div>
 </div>
-
-<div class="asset-section"><h4>✅ Approval Workflow - Draft Pending Approved Sent to Vendor Partially Received Closed - v4.5</h4>
+<div class="asset-section"><h4>✅ Approval</h4>
 <div class="row"><div>Status<select id="po_status"><option value="Draft">Draft</option><option value="Pending">Pending</option><option value="Approved">Approved</option><option value="Sent to Vendor">Sent to Vendor</option><option value="Partially Received">Partially Received</option><option value="Closed">Closed</option></select></div><div>Created By<input id="po_created_by" value="Admin"></div></div>
-<p style="font-size:10px;color:#888">Approval: Draft → Pending → Approved → Sent to Vendor → Partially Received → Closed - Single approval for now - Copy Duplicate Email PDF Whatsapp buttons in list</p>
 </div>
-
-</div><div class="modal-footer"><button class="btn btn-g" style="flex:1;padding:14px;font-size:13px" onclick="savePO()">Save PO - PO/26-27/PRODUCT/0001 Auto + GST Breakup - v4.5</button><button class="btn btn-w" onclick="closeAddPOPopup()">Cancel</button></div></div></div>
+</div><div class="modal-footer"><button class="btn btn-g" style="flex:1;padding:14px;font-size:13px" onclick="savePO()">Save PO - v4.5 Fixed</button><button class="btn btn-w" onclick="closeAddPOPopup()">Cancel</button></div></div></div>
 
 
 <script>
@@ -1895,458 +1888,56 @@ async function editVendor(id){
 
 async function delVendor(id){ if(!confirm('Delete Vendor?')) return; await fetch(`/api/vendors/${id}`,{method:'DELETE'}); loadVendors();}
 
-// ================= PO MODULE v4.5 - PURCHASE ORDER - ONLY PO MODULE, MASTERS LOCKED =================
+// ================= PO MODULE v4.5 FIXED =================
 let poProducts=[], poVendors=[], poSBUs=[], poLineCounter=0;
-
 async function loadPOMasters(){
  let rp=await fetch('/api/products'); poProducts=await rp.json();
  let rv=await fetch('/api/vendors'); poVendors=await rv.json();
  let rs=await fetch('/api/sbus'); poSBUs=await rs.json();
- // Populate SBU dropdowns
  let sbuSel=document.getElementById('po_sbu');
  let sbuFilter=document.getElementById('poSbuFilter');
- if(sbuSel) {
-   sbuSel.innerHTML='<option value="">Select SBU - Delivery Location</option>';
-   poSBUs.forEach(s=>{ sbuSel.innerHTML+=`<option value="${s.id}">${s.sbu_name} - ${s.address?.substring(0,40)||''}</option>`; });
- }
- if(sbuFilter && sbuFilter.options.length<=1){
-   poSBUs.forEach(s=>{ sbuFilter.innerHTML+=`<option value="${s.id}">${s.sbu_name}</option>`; });
- }
- // Vendor dropdown searchable
+ if(sbuSel){ sbuSel.innerHTML='<option value="">Select SBU</option>'; poSBUs.forEach(s=>{ sbuSel.innerHTML+=`<option value="${s.id}">${s.sbu_name}</option>`; }); }
+ if(sbuFilter && sbuFilter.options.length<=1){ poSBUs.forEach(s=>{ sbuFilter.innerHTML+=`<option value="${s.id}">${s.sbu_name}</option>`; }); }
  let vendorSel=document.getElementById('po_vendor');
  let vendorFilter=document.getElementById('poVendorFilter');
- if(vendorSel){
-   vendorSel.innerHTML='<option value="">Select Vendor - Searchable</option>';
-   poVendors.forEach(v=>{
-     let rating='★'.repeat(v.vendor_rating||0);
-     vendorSel.innerHTML+=`<option value="${v.id}">${v.name} (${v.vendor_code}) - ${v.station} - ${rating} ${v.approval_status} - ${v.state}</option>`;
-   });
- }
- if(vendorFilter && vendorFilter.options.length<=1){
-   poVendors.forEach(v=>{ vendorFilter.innerHTML+=`<option value="${v.id}">${v.name}</option>`; });
- }
- // Product filter dropdown
+ if(vendorSel){ vendorSel.innerHTML='<option value="">Select Vendor</option>'; poVendors.forEach(v=>{ let rating='★'.repeat(v.vendor_rating||0); vendorSel.innerHTML+=`<option value="${v.id}">${v.name} (${v.vendor_code}) - ${rating} ${v.approval_status}</option>`; }); }
+ if(vendorFilter && vendorFilter.options.length<=1){ poVendors.forEach(v=>{ vendorFilter.innerHTML+=`<option value="${v.id}">${v.name}</option>`; }); }
  let prodFilterSel=document.getElementById('po_product_filter');
- if(prodFilterSel){
-   prodFilterSel.innerHTML='<option value="">Select Product for auto fill line items</option>';
-   poProducts.forEach(p=>{
-     prodFilterSel.innerHTML+=`<option value="${p.id}">${p.name} (${p.product_code}) - ${p.category} - HSN ${p.hsn_code}</option>`;
-   });
- }
+ if(prodFilterSel){ prodFilterSel.innerHTML='<option value="">Select Product for auto fill</option>'; poProducts.forEach(p=>{ prodFilterSel.innerHTML+=`<option value="${p.id}">${p.name} (${p.product_code}) - HSN ${p.hsn_code}</option>`; }); }
 }
-
-function filterProductsByPOType(){
- let type=document.getElementById('po_type').value;
- let sel=document.getElementById('po_product_filter');
- if(!sel) return;
- let filtered=poProducts;
- if(type==='Raw Material'){
-   filtered=poProducts.filter(p=>{ let c=(p.category||'').toLowerCase(); return c.includes('raw')||c.includes('limestone')||c.includes('petcoke')||c.includes('coal')||c.includes('petcoke')||c.includes('lime'); });
-   if(filtered.length===0) filtered=poProducts;
- }
- sel.innerHTML='<option value="">Select Product for auto fill line items</option>';
- filtered.forEach(p=>{ sel.innerHTML+=`<option value="${p.id}">${p.name} (${p.product_code}) - ${p.category}</option>`; });
-}
-
+function filterProductsByPOType(){ let type=document.getElementById('po_type').value; let sel=document.getElementById('po_product_filter'); if(!sel) return; let filtered=poProducts; if(type==='Raw Material'){ filtered=poProducts.filter(p=>{ let c=(p.category||'').toLowerCase(); return c.includes('raw')||c.includes('limestone')||c.includes('petcoke')||c.includes('coal'); }); if(filtered.length===0) filtered=poProducts; } sel.innerHTML='<option value="">Select Product for auto fill</option>'; filtered.forEach(p=>{ sel.innerHTML+=`<option value="${p.id}">${p.name} (${p.product_code})</option>`; }); }
 function getProductById(id){ return poProducts.find(p=> String(p.id)===String(id)); }
 function getVendorById(id){ return poVendors.find(v=> String(v.id)===String(id)); }
 function getSBUById(id){ return poSBUs.find(s=> String(s.id)===String(id)); }
-
-function onSBUChange(){
- let sbuId=document.getElementById('po_sbu').value;
- let sbu=getSBUById(sbuId);
- if(sbu){
-   document.getElementById('po_delivery_address').value=sbu.address||sbu.sbu_name;
-   if(document.getElementById('po_same_as_delivery').checked){
-     document.getElementById('po_billing_address').value=sbu.address||sbu.sbu_name;
-   }
- }
-}
-
-function toggleBillingSame(){
- let same=document.getElementById('po_same_as_delivery').checked;
- if(same){
-   document.getElementById('po_billing_address').value=document.getElementById('po_delivery_address').value;
- }
-}
-
-function onProductFilterChange(){
- let prodId=document.getElementById('po_product_filter').value;
- let prod=getProductById(prodId);
- if(prod){
-   document.getElementById('po_product_id').value=prod.id;
-   // If no line items, auto add one line with this product
-   let container=document.getElementById('poItemsContainer');
-   if(container.innerHTML.includes('No line items') || container.children.length===0){
-     addPOLineItem(prod);
-   }
- }
-}
-
-function onVendorChange(){
- let vendorId=document.getElementById('po_vendor').value;
- let vendor=getVendorById(vendorId);
- if(!vendor) return;
- // Auto suggest previous spec? Fetch rate history
- fetchRateHistoryForVendorProduct();
-}
-
-async function fetchRateHistoryForVendorProduct(){
- let vendorId=document.getElementById('po_vendor').value;
- let prodId=document.getElementById('po_product_filter').value;
- if(!vendorId) return;
- let params=new URLSearchParams({vendor_id:vendorId});
- if(prodId) params.set('product_id', prodId);
- else {
-   let prodName=document.getElementById('po_product_filter').selectedOptions[0]?.text || '';
-   if(prodName) params.set('product_name', prodName.split('(')[0].trim());
- }
- let r=await fetch(`/api/po/rate_history?${params}`);
- let history=await r.json();
- if(history.length>0){
-   let last=history[0];
-   console.log('Last rate', last);
-   // Could show in UI - for now console, future will show below rate field
-   // If line items exist, suggest rate
-   document.querySelectorAll('.po_rate').forEach(input=>{
-     if(!input.value){
-       input.placeholder=`Last Rate: Rs ${last.rate} on ${last.po_date}`;
-     }
-   });
- }
-}
-
-// HSN to GST mapping default (same as backend)
-function getGSTPercentForHSN(hsn){
- const map={"2522":5,"2517":5,"2701":5,"2702":5,"2713":18,"2521":5,"6810":18,"2518":5};
- let h=String(hsn||'').substring(0,4);
- return map[h]||18;
-}
-
+function onSBUChange(){ let sbuId=document.getElementById('po_sbu').value; let sbu=getSBUById(sbuId); if(sbu){ document.getElementById('po_delivery_address').value=sbu.address||sbu.sbu_name; if(document.getElementById('po_same_as_delivery').checked){ document.getElementById('po_billing_address').value=sbu.address||sbu.sbu_name; } } }
+function toggleBillingSame(){ if(document.getElementById('po_same_as_delivery').checked){ document.getElementById('po_billing_address').value=document.getElementById('po_delivery_address').value; } }
+function onProductFilterChange(){ let prodId=document.getElementById('po_product_filter').value; let prod=getProductById(prodId); if(prod){ document.getElementById('po_product_id').value=prod.id; let container=document.getElementById('poItemsContainer'); if(container.innerHTML.includes('No line items')){ addPOLineItem(prod); } } }
+function onVendorChange(){ fetchRateHistoryForVendorProduct(); }
+async function fetchRateHistoryForVendorProduct(){ let vendorId=document.getElementById('po_vendor').value; let prodId=document.getElementById('po_product_filter').value; if(!vendorId) return; let params=new URLSearchParams({vendor_id:vendorId}); if(prodId) params.set('product_id', prodId); let r=await fetch(`/api/po/rate_history?${params}`); let history=await r.json(); if(history.length>0){ document.querySelectorAll('.po_rate').forEach(input=>{ if(!input.value){ input.placeholder=`Last Rate: Rs ${history[0].rate} on ${history[0].po_date}`; } }); } }
+function getGSTPercentForHSN(hsn){ const map={"2522":5,"2517":5,"2701":5,"2702":5,"2713":18}; let h=String(hsn||'').substring(0,4); return map[h]||18; }
 function addPOLineItem(prefillProduct=null){
- let c=document.getElementById('poItemsContainer');
- if(c.innerHTML.includes('No line items')) c.innerHTML='';
- poLineCounter++;
- let id=`poline_${Date.now()}_${poLineCounter}`;
- let prod=prefillProduct || null;
- if(!prod){
-   // Try from filter
-   let filterProdId=document.getElementById('po_product_filter').value;
-   if(filterProdId) prod=getProductById(filterProdId);
- }
- let productCode=prod?.product_code||'';
- let productName=prod?.name||'';
- let hsnCode=prod?.hsn_code||'';
- let gstPercent=getGSTPercentForHSN(hsnCode);
- let uom='MT'; // default as per spec - add UOM in PO only
- let html=`<div id="${id}" class="product-line" style="border-left-color:#1A2E1E;background:#FFFBEB">
- <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b>Line Item #${poLineCounter}</b><button class="btn btn-r" onclick="document.getElementById('${id}').remove(); recalcPOTotals();">Delete Line</button></div>
- <div class="row"><div>Product Code - Pre Selected<input class="po_product_code" value="${productCode}" placeholder="Product Code" readonly style="background:var(--alab)"></div><div>Product Name - Pre Selected<input class="po_product_name" value="${productName}" placeholder="Product Name" readonly style="background:var(--alab)"></div><div>HSN Code - Pre Selected<input class="po_hsn" value="${hsnCode}" placeholder="HSN" readonly style="background:var(--alab)"></div></div>
- <div class="row"><div>Product<input type="hidden" class="po_product_id" value="${prod?.id||''}"><select class="po_product_select" onchange="onPOLineProductChange('${id}')"><option value="">Select Product</option>${poProducts.map(p=>`<option value="${p.id}" ${prod && p.id==prod.id?'selected':''}>${p.name} (${p.product_code}) - HSN ${p.hsn_code}</option>`).join('')}</select><p style="font-size:9px;color:#888">Change product to auto fill code/name/hsn/uom/gst</p></div><div>Product Specification - Text (Auto suggest previous PO)<input class="po_spec" placeholder="Product Specification - e.g. Size 10-40mm, CaO 90%+" list="specList_${id}"><datalist id="specList_${id}"></datalist></div></div>
- <div class="row"><div>UOM - Pre Selected<input class="po_uom" value="${uom}" placeholder="UOM e.g. MT, Kg, Nos"><p style="font-size:9px;color:#888">Add UOM in PO only - v4.5</p></div><div>PO Quantity - Number 3 decimal<input type="number" class="po_qty" placeholder="Quantity e.g. 25.500" step="0.001" value="" oninput="recalcPOLine('${id}'); recalcPOTotals();"></div><div>Product Rate - Number 2 decimal<input type="number" class="po_rate" placeholder="Rate e.g. 1250.50" step="0.01" value="" oninput="recalcPOLine('${id}'); recalcPOTotals();"><small class="po_rate_history" style="font-size:9px;color:#1A2E1E"></small></div></div>
- <div class="row"><div>Tax Slab GST% - Auto fill<input type="number" class="po_gst_percent" value="${gstPercent}" step="0.01" oninput="recalcPOLine('${id}'); recalcPOTotals();"><p style="font-size:9px;color:#888">Auto from HSN mapping - editable - Same state SGST+CGST else IGST</p></div><div>GST Type<select class="po_gst_type" onchange="recalcPOLine('${id}'); recalcPOTotals();"><option value="intra">Intra-State (CGST+SGST)</option><option value="inter">Inter-State (IGST)</option></select></div><div>Amount Auto<input class="po_amount" disabled style="background:var(--alab);font-weight:800" placeholder="Amount auto qty*rate"></div></div>
- <div class="row"><div>CGST<input class="po_cgst" disabled style="background:var(--alab)" placeholder="CGST auto"></div><div>SGST<input class="po_sgst" disabled style="background:var(--alab)" placeholder="SGST auto"></div><div>IGST<input class="po_igst" disabled style="background:var(--alab)" placeholder="IGST auto"></div><div>Total with Tax<input class="po_total" disabled style="background:var(--green);color:white;font-weight:800" placeholder="Total"></div></div>
- </div>`;
- c.insertAdjacentHTML('beforeend', html);
+ let c=document.getElementById('poItemsContainer'); if(c.innerHTML.includes('No line items')) c.innerHTML=''; poLineCounter++; let id=`poline_${Date.now()}_${poLineCounter}`; let prod=prefillProduct||null; if(!prod){ let filterProdId=document.getElementById('po_product_filter').value; if(filterProdId) prod=getProductById(filterProdId); } let productCode=prod?.product_code||''; let productName=prod?.name||''; let hsnCode=prod?.hsn_code||''; let gstPercent=getGSTPercentForHSN(hsnCode); let uom='MT'; let html=`<div id="${id}" class="product-line" style="border-left-color:#1A2E1E;background:#FFFBEB"><div style="display:flex;justify-content:space-between"><b>Line #${poLineCounter}</b><button class="btn btn-r" onclick="document.getElementById('${id}').remove(); recalcPOTotals();">Delete</button></div><div class="row"><div>Code<input class="po_product_code" value="${productCode}" readonly style="background:var(--alab)"></div><div>Name<input class="po_product_name" value="${productName}" readonly style="background:var(--alab)"></div><div>HSN<input class="po_hsn" value="${hsnCode}" readonly style="background:var(--alab)"></div></div><div class="row"><div>Product<input type="hidden" class="po_product_id" value="${prod?.id||''}"><select class="po_product_select" onchange="onPOLineProductChange('${id}')"><option value="">Select</option>${poProducts.map(p=>`<option value="${p.id}" ${prod && p.id==prod.id?'selected':''}>${p.name} (${p.product_code})</option>`).join('')}</select></div><div>Spec<input class="po_spec" placeholder="Spec e.g. 10-40mm CaO 90%+"></div></div><div class="row"><div>UOM<input class="po_uom" value="${uom}"></div><div>Qty 3 dec<input type="number" class="po_qty" step="0.001" oninput="recalcPOLine('${id}'); recalcPOTotals();"></div><div>Rate 2 dec<input type="number" class="po_rate" step="0.01" oninput="recalcPOLine('${id}'); recalcPOTotals();"></div></div><div class="row"><div>GST%<input type="number" class="po_gst_percent" value="${gstPercent}" step="0.01" oninput="recalcPOLine('${id}'); recalcPOTotals();"></div><div>GST Type<select class="po_gst_type" onchange="recalcPOLine('${id}'); recalcPOTotals();"><option value="intra">Intra CGST+SGST</option><option value="inter">Inter IGST</option></select></div><div>Amount<input class="po_amount" disabled style="background:var(--alab);font-weight:800"></div></div><div class="row"><div>CGST<input class="po_cgst" disabled style="background:var(--alab)"></div><div>SGST<input class="po_sgst" disabled style="background:var(--alab)"></div><div>IGST<input class="po_igst" disabled style="background:var(--alab)"></div><div>Total<input class="po_total" disabled style="background:var(--green);color:white;font-weight:800"></div></div></div>`; c.insertAdjacentHTML('beforeend', html);
 }
-
-function onPOLineProductChange(lineId){
- let div=document.getElementById(lineId);
- let sel=div.querySelector('.po_product_select');
- let prodId=sel.value;
- let prod=getProductById(prodId);
- if(!prod) return;
- div.querySelector('.po_product_id').value=prod.id;
- div.querySelector('.po_product_code').value=prod.product_code;
- div.querySelector('.po_product_name').value=prod.name;
- div.querySelector('.po_hsn').value=prod.hsn_code;
- div.querySelector('.po_gst_percent').value=getGSTPercentForHSN(prod.hsn_code);
- recalcPOLine(lineId);
- recalcPOTotals();
- // Fetch spec history
- fetchSpecHistory(prodId, lineId);
-}
-
-async function fetchSpecHistory(productId, lineId){
- let vendorId=document.getElementById('po_vendor').value;
- if(!vendorId || !productId) return;
- let r=await fetch(`/api/po/rate_history?vendor_id=${vendorId}&product_id=${productId}`);
- let history=await r.json();
- let datalist=document.getElementById(`specList_${lineId}`);
- if(!datalist) return;
- datalist.innerHTML='';
- history.forEach(h=>{
-   if(h.spec) datalist.innerHTML+=`<option value="${h.spec}">Rate ${h.rate} on ${h.po_date}</option>`;
- });
- let rateInput=document.querySelector(`#${lineId} .po_rate`);
- let historySmall=document.querySelector(`#${lineId} .po_rate_history`);
- if(history.length>0 && rateInput){
-   let last=history[0];
-   rateInput.placeholder=`Last: Rs ${last.rate} on ${last.po_date}`;
-   if(historySmall) historySmall.innerText=`Last Rate Rs ${last.rate} (${last.po_no} ${last.po_date}) - Spec: ${last.spec||''}`;
- }
-}
-
-function recalcPOLine(lineId){
- let div=document.getElementById(lineId);
- if(!div) return;
- let qty=parseFloat(div.querySelector('.po_qty').value)||0;
- let rate=parseFloat(div.querySelector('.po_rate').value)||0;
- let gst=parseFloat(div.querySelector('.po_gst_percent').value)||0;
- let gstType=div.querySelector('.po_gst_type').value;
- let amount=qty*rate;
- let cgst=0, sgst=0, igst=0;
- if(gstType==='intra'){
-   cgst=amount*gst/100/2;
-   sgst=amount*gst/100/2;
- } else {
-   igst=amount*gst/100;
- }
- div.querySelector('.po_amount').value=amount.toFixed(2);
- div.querySelector('.po_cgst').value=cgst.toFixed(2);
- div.querySelector('.po_sgst').value=sgst.toFixed(2);
- div.querySelector('.po_igst').value=igst.toFixed(2);
- div.querySelector('.po_total').value=(amount+cgst+sgst+igst).toFixed(2);
-}
-
-function recalcPOTotals(){
- let taxable=0, cgst=0, sgst=0, igst=0;
- document.querySelectorAll('#poItemsContainer > div[id^="poline_"]').forEach(div=>{
-   let qty=parseFloat(div.querySelector('.po_qty').value)||0;
-   let rate=parseFloat(div.querySelector('.po_rate').value)||0;
-   let gst=parseFloat(div.querySelector('.po_gst_percent').value)||0;
-   let gstType=div.querySelector('.po_gst_type').value;
-   let amt=qty*rate;
-   taxable+=amt;
-   if(gstType==='intra'){
-     cgst+=amt*gst/100/2;
-     sgst+=amt*gst/100/2;
-   } else {
-     igst+=amt*gst/100;
-   }
- });
- let freight=parseFloat(document.getElementById('po_freight').value)||0;
- let roundOff=parseFloat(document.getElementById('po_round_off').value)||0;
- let grand=taxable+cgst+sgst+igst+freight+roundOff;
- document.getElementById('po_taxable').value=taxable.toFixed(2);
- document.getElementById('po_cgst').value=cgst.toFixed(2);
- document.getElementById('po_sgst').value=sgst.toFixed(2);
- document.getElementById('po_igst').value=igst.toFixed(2);
- document.getElementById('po_grand_total').value=grand.toFixed(2);
-}
-
-// Drag & Drop for PO docs
+function onPOLineProductChange(lineId){ let div=document.getElementById(lineId); let sel=div.querySelector('.po_product_select'); let prod=getProductById(sel.value); if(!prod) return; div.querySelector('.po_product_id').value=prod.id; div.querySelector('.po_product_code').value=prod.product_code; div.querySelector('.po_product_name').value=prod.name; div.querySelector('.po_hsn').value=prod.hsn_code; div.querySelector('.po_gst_percent').value=getGSTPercentForHSN(prod.hsn_code); recalcPOLine(lineId); recalcPOTotals(); }
+function recalcPOLine(lineId){ let div=document.getElementById(lineId); if(!div) return; let qty=parseFloat(div.querySelector('.po_qty').value)||0; let rate=parseFloat(div.querySelector('.po_rate').value)||0; let gst=parseFloat(div.querySelector('.po_gst_percent').value)||0; let gstType=div.querySelector('.po_gst_type').value; let amount=qty*rate; let cgst=0, sgst=0, igst=0; if(gstType==='intra'){ cgst=amount*gst/100/2; sgst=amount*gst/100/2; } else { igst=amount*gst/100; } div.querySelector('.po_amount').value=amount.toFixed(2); div.querySelector('.po_cgst').value=cgst.toFixed(2); div.querySelector('.po_sgst').value=sgst.toFixed(2); div.querySelector('.po_igst').value=igst.toFixed(2); div.querySelector('.po_total').value=(amount+cgst+sgst+igst).toFixed(2); }
+function recalcPOTotals(){ let taxable=0, cgst=0, sgst=0, igst=0; document.querySelectorAll('#poItemsContainer > div[id^="poline_"]').forEach(div=>{ let qty=parseFloat(div.querySelector('.po_qty').value)||0; let rate=parseFloat(div.querySelector('.po_rate').value)||0; let gst=parseFloat(div.querySelector('.po_gst_percent').value)||0; let gstType=div.querySelector('.po_gst_type').value; let amt=qty*rate; taxable+=amt; if(gstType==='intra'){ cgst+=amt*gst/100/2; sgst+=amt*gst/100/2; } else { igst+=amt*gst/100; } }); let freight=parseFloat(document.getElementById('po_freight').value)||0; let roundOff=parseFloat(document.getElementById('po_round_off').value)||0; let grand=taxable+cgst+sgst+igst+freight+roundOff; document.getElementById('po_taxable').value=taxable.toFixed(2); document.getElementById('po_cgst').value=cgst.toFixed(2); document.getElementById('po_sgst').value=sgst.toFixed(2); document.getElementById('po_igst').value=igst.toFixed(2); document.getElementById('po_grand_total').value=grand.toFixed(2); }
 function handlePODragOver(e, zoneId){ e.preventDefault(); e.stopPropagation(); document.getElementById(zoneId).classList.add('dragover'); }
 function handlePODragLeave(e, zoneId){ e.preventDefault(); e.stopPropagation(); document.getElementById(zoneId).classList.remove('dragover'); }
 function handlePODrop(e, docType){ e.preventDefault(); e.stopPropagation(); document.getElementById('dz_'+docType).classList.remove('dragover'); let files=e.dataTransfer.files; if(files.length>0) processPODocFile(files[0], docType); }
 function handlePOFileSelect(e, docType){ let file=e.target.files[0]; if(file) processPODocFile(file, docType); }
-function processPODocFile(file, docType){
- if(file.size>5*1024*1024) return alert('File too large - Max 5MB - '+(file.size/1024/1024).toFixed(2)+'MB');
- let reader=new FileReader();
- reader.onload=function(ev){
-   let base64=ev.target.result;
-   document.getElementById('doc_'+docType).value=base64;
-   let fileDiv=document.getElementById('dz_file_'+docType);
-   let infoDiv=document.getElementById('doc_'+docType+'_info');
-   let clearBtn=document.getElementById('dz_clear_'+docType);
-   fileDiv.style.display='block';
-   fileDiv.innerHTML=`📎 ${file.name} (${(file.size/1024).toFixed(1)}KB)`;
-   if(infoDiv) infoDiv.innerHTML=`✅ File ready: ${file.name}`;
-   if(clearBtn) clearBtn.style.display='inline-block';
-   document.getElementById('dz_'+docType).style.borderColor='#1A2E1E';
-   document.getElementById('dz_'+docType).style.background='#F6FFF6';
- };
- reader.readAsDataURL(file);
-}
-function clearPODoc(docType, e){ if(e){ e.preventDefault(); e.stopPropagation(); } document.getElementById('doc_'+docType).value=''; let fileIn=document.getElementById('file_'+docType); if(fileIn) fileIn.value=''; let fileDiv=document.getElementById('dz_file_'+docType); if(fileDiv){ fileDiv.style.display='none'; fileDiv.innerHTML=''; } let infoDiv=document.getElementById('doc_'+docType+'_info'); if(infoDiv) infoDiv.innerHTML='No file selected'; let clearBtn=document.getElementById('dz_clear_'+docType); if(clearBtn) clearBtn.style.display='none'; let zone=document.getElementById('dz_'+docType); if(zone){ zone.style.borderColor=''; zone.style.background=''; zone.classList.remove('dragover'); } }
-function setPODocFromExisting(docType, base64Value){ if(!base64Value) return; document.getElementById('doc_'+docType).value=base64Value; let fileDiv=document.getElementById('dz_file_'+docType); let infoDiv=document.getElementById('doc_'+docType+'_info'); let clearBtn=document.getElementById('dz_clear_'+docType); if(fileDiv){ fileDiv.style.display='block'; if(base64Value.startsWith('data:')){ fileDiv.innerHTML=`📎 Existing file loaded (${(base64Value.length/1024).toFixed(1)}KB)`; } else { fileDiv.innerHTML=`📎 ${base64Value}`; } } if(infoDiv) infoDiv.innerHTML=`✅ Loaded: ${base64Value.substring(0,40)}...`; if(clearBtn) clearBtn.style.display='inline-block'; }
-
-function openAddPOPopup(){
- document.getElementById('poModal').classList.remove('hidden');
- document.getElementById('po_id').value='';
- document.getElementById('po_rfq_no').value='';
- document.getElementById('po_no_preview').value='';
- document.getElementById('po_date').value=new Date().toISOString().split('T')[0];
- document.getElementById('po_validity').value='';
- document.getElementById('po_type').value='Raw Material';
- document.getElementById('po_sbu').value='';
- document.getElementById('po_delivery_address').value='';
- document.getElementById('po_billing_address').value='';
- document.getElementById('po_same_as_delivery').checked=true;
- document.getElementById('po_product_id').value='';
- document.getElementById('po_product_filter').value='';
- document.getElementById('po_vendor').value='';
- document.getElementById('poItemsContainer').innerHTML='<p style="text-align:center;color:#888;padding:12px">No line items - Click Add Line Item Button</p>';
- document.getElementById('po_taxable').value=''; document.getElementById('po_cgst').value=''; document.getElementById('po_sgst').value=''; document.getElementById('po_igst').value=''; document.getElementById('po_freight').value=''; document.getElementById('po_round_off').value='0'; document.getElementById('po_grand_total').value='';
- document.getElementById('po_delivery_type').value='One Time'; document.getElementById('po_delivery_schedule').value=''; document.getElementById('po_payment_terms').value=''; document.getElementById('po_rate_basis').value='FOR'; document.getElementById('po_freight_terms').value=''; document.getElementById('po_tds_applicable').value='Not Applicable'; document.getElementById('po_tds_percent').value=''; document.getElementById('po_rcm_applicable').value='No'; document.getElementById('po_rcm_percent').value='';
- ['po_doc','freight_slip'].forEach(dt=>{ clearPODoc(dt); });
- document.getElementById('po_status').value='Draft'; document.getElementById('po_created_by').value='Admin';
- loadPOMasters();
- poLineCounter=0;
-}
-
+function processPODocFile(file, docType){ if(file.size>5*1024*1024) return alert('File too large Max 5MB'); let reader=new FileReader(); reader.onload=function(ev){ let base64=ev.target.result; document.getElementById('doc_'+docType).value=base64; let fileDiv=document.getElementById('dz_file_'+docType); let infoDiv=document.getElementById('doc_'+docType+'_info'); let clearBtn=document.getElementById('dz_clear_'+docType); fileDiv.style.display='block'; fileDiv.innerHTML=`📎 ${file.name} (${(file.size/1024).toFixed(1)}KB)`; if(infoDiv) infoDiv.innerHTML=`✅ ${file.name}`; if(clearBtn) clearBtn.style.display='inline-block'; }; reader.readAsDataURL(file); }
+function clearPODoc(docType, e){ if(e){ e.preventDefault(); e.stopPropagation(); } document.getElementById('doc_'+docType).value=''; let fileIn=document.getElementById('file_'+docType); if(fileIn) fileIn.value=''; let fileDiv=document.getElementById('dz_file_'+docType); if(fileDiv){ fileDiv.style.display='none'; } let infoDiv=document.getElementById('doc_'+docType+'_info'); if(infoDiv) infoDiv.innerHTML='No file'; let clearBtn=document.getElementById('dz_clear_'+docType); if(clearBtn) clearBtn.style.display='none'; }
+function setPODocFromExisting(docType, base64Value){ if(!base64Value) return; document.getElementById('doc_'+docType).value=base64Value; let fileDiv=document.getElementById('dz_file_'+docType); let infoDiv=document.getElementById('doc_'+docType+'_info'); let clearBtn=document.getElementById('dz_clear_'+docType); if(fileDiv){ fileDiv.style.display='block'; fileDiv.innerHTML=`📎 Existing ${(base64Value.length/1024).toFixed(1)}KB`; } if(infoDiv) infoDiv.innerHTML=`✅ Loaded`; if(clearBtn) clearBtn.style.display='inline-block'; }
+function openAddPOPopup(){ document.getElementById('poModal').classList.remove('hidden'); document.getElementById('po_id').value=''; document.getElementById('po_rfq_no').value=''; document.getElementById('po_no_preview').value=''; document.getElementById('po_date').value=new Date().toISOString().split('T')[0]; document.getElementById('po_validity').value=''; document.getElementById('po_type').value='Raw Material'; document.getElementById('po_sbu').value=''; document.getElementById('po_delivery_address').value=''; document.getElementById('po_billing_address').value=''; document.getElementById('po_same_as_delivery').checked=true; document.getElementById('po_product_id').value=''; document.getElementById('po_product_filter').value=''; document.getElementById('po_vendor').value=''; document.getElementById('poItemsContainer').innerHTML='<p style="text-align:center;color:#888;padding:12px">No line items - Click Add Line Item Button</p>'; document.getElementById('po_taxable').value=''; document.getElementById('po_cgst').value=''; document.getElementById('po_sgst').value=''; document.getElementById('po_igst').value=''; document.getElementById('po_freight').value=''; document.getElementById('po_round_off').value='0'; document.getElementById('po_grand_total').value=''; document.getElementById('po_delivery_type').value='One Time'; document.getElementById('po_delivery_schedule').value=''; document.getElementById('po_payment_terms').value=''; document.getElementById('po_rate_basis').value='FOR'; document.getElementById('po_freight_terms').value=''; document.getElementById('po_tds_applicable').value='Not Applicable'; document.getElementById('po_tds_percent').value=''; document.getElementById('po_rcm_applicable').value='No'; document.getElementById('po_rcm_percent').value=''; ['po_doc','freight_slip'].forEach(dt=>{ clearPODoc(dt); }); document.getElementById('po_status').value='Draft'; document.getElementById('po_created_by').value='Admin'; loadPOMasters(); poLineCounter=0; }
 function closeAddPOPopup(){ document.getElementById('poModal').classList.add('hidden'); }
-
-async function savePO(){
- let sbuId=document.getElementById('po_sbu').value;
- if(!sbuId) return alert('SBU mandatory - Delivery location');
- let vendorId=document.getElementById('po_vendor').value;
- if(!vendorId) return alert('Vendor mandatory');
- let items=[];
- let valid=true;
- document.querySelectorAll('#poItemsContainer > div[id^="poline_"]').forEach(div=>{
-   let product_id=div.querySelector('.po_product_id').value || div.querySelector('.po_product_select').value;
-   let product_code=div.querySelector('.po_product_code').value;
-   let product_name=div.querySelector('.po_product_name').value;
-   let hsn=div.querySelector('.po_hsn').value;
-   let spec=div.querySelector('.po_spec').value;
-   let uom=div.querySelector('.po_uom').value;
-   let qty=div.querySelector('.po_qty').value;
-   let rate=div.querySelector('.po_rate').value;
-   let gst_percent=div.querySelector('.po_gst_percent').value;
-   let gst_type=div.querySelector('.po_gst_type').value;
-   if(!product_id || !qty || !rate){ valid=false; }
-   items.push({product_id: product_id?parseInt(product_id):null, product_code, product_name, hsn_code:hsn, spec, uom, qty:parseFloat(qty)||0, rate:parseFloat(rate)||0, gst_percent:parseFloat(gst_percent)||0, gst_type, amount:0, cgst_amount:0, sgst_amount:0, igst_amount:0, tax_amount:0, total_amount:0});
- });
- if(!valid || items.length===0) return alert('Add at least one line item with Product, Qty, Rate - Check line items');
- let docs={po_doc:document.getElementById('doc_po_doc').value, freight_slip:document.getElementById('doc_freight_slip').value};
- let payload={
-   rfq_no:document.getElementById('po_rfq_no').value,
-   po_date:document.getElementById('po_date').value,
-   po_validity:document.getElementById('po_validity').value,
-   po_type:document.getElementById('po_type').value,
-   sbu_id: sbuId?parseInt(sbuId):null,
-   delivery_address:document.getElementById('po_delivery_address').value,
-   billing_address:document.getElementById('po_billing_address').value,
-   same_as_delivery:document.getElementById('po_same_as_delivery').checked,
-   product_id: document.getElementById('po_product_id').value?parseInt(document.getElementById('po_product_id').value):null,
-   product_name_filter: document.getElementById('po_product_filter').selectedOptions[0]?.text?.split('(')[0]?.trim() || '',
-   vendor_id: vendorId?parseInt(vendorId):null,
-   items:items,
-   freight_amount:parseFloat(document.getElementById('po_freight').value)||0,
-   round_off:parseFloat(document.getElementById('po_round_off').value)||0,
-   delivery_type:document.getElementById('po_delivery_type').value,
-   delivery_schedule:document.getElementById('po_delivery_schedule').value,
-   payment_terms_days:parseInt(document.getElementById('po_payment_terms').value)||0,
-   rate_basis:document.getElementById('po_rate_basis').value,
-   freight_terms:document.getElementById('po_freight_terms').value,
-   tds_applicable:document.getElementById('po_tds_applicable').value,
-   tds_percent:parseFloat(document.getElementById('po_tds_percent').value)||0,
-   rcm_applicable:document.getElementById('po_rcm_applicable').value,
-   rcm_percent:parseFloat(document.getElementById('po_rcm_percent').value)||0,
-   documents:docs,
-   status:document.getElementById('po_status').value,
-   approval_status:document.getElementById('po_status').value,
-   created_by:document.getElementById('po_created_by').value
- };
- let poId=document.getElementById('po_id').value;
- let url=poId?`/api/po/${poId}`:'/api/po';
- let method=poId?'PUT':'POST';
- let res=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
- let j=await res.json();
- if(res.ok){ alert(`PO ${poId?'Updated':'Created'}: ${j.po_no||payload.po_no} - Grand Total Rs ${j.grand_total||''} - ${items.length} Items`); closeAddPOPopup(); loadPOs(); } else alert(j.error||'Error saving PO');
-}
-
-async function loadPOs(){
- await loadPOMasters();
- let search=document.getElementById('poSearch')?.value||'';
- let poType=document.getElementById('poTypeFilter')?.value||'';
- let status=document.getElementById('poStatusFilter')?.value||'';
- let sbu=document.getElementById('poSbuFilter')?.value||'';
- let vendor=document.getElementById('poVendorFilter')?.value||'';
- let params=new URLSearchParams({search, po_type:poType, status, sbu, vendor});
- let r=await fetch(`/api/po?${params}`);
- let pos=await r.json();
- document.getElementById('poCountBadge').innerText=`${pos.length} POs`;
- let tb=document.getElementById('poTbl'); tb.innerHTML='';
- if(pos.length===0){ tb.innerHTML=`<tr><td colspan="9" style="text-align:center;padding:20px;color:#888">No POs - Add Purchase Order Button above - v4.5 PO/26-27/PRODUCT/0001</td></tr>`; return; }
- pos.forEach((p,i)=>{
-   let itemsHtml=(p.items||[]).map(it=>`<span style="display:block;background:#FFFBEB;padding:3px 6px;border-radius:4px;margin:2px 0;border:1px solid var(--brass);font-size:10px"><b>${it.product_code}</b> ${it.product_name} - HSN ${it.hsn_code} - ${it.qty} ${it.uom} x ${it.rate} = ${it.amount} + GST ${it.gst_percent}% = ${it.total_amount}<br><small>Spec: ${it.spec||''}</small></span>`).join('');
-   let statusClass=p.status==='Approved'?'ok':p.status==='Draft'?'brass':p.status==='Closed'?'ok':p.status==='Rejected'?'crit':'warn';
-   let docsBadge=p.has_docs?`<span class="badge ok">${Object.keys(p.documents||{}).filter(k=>p.documents[k]).length} Docs</span>`:'<small style="color:#888">No docs</small>';
-   let gstBreakup=`Taxable: Rs ${p.taxable_value}<br>CGST: ${p.cgst_amount} SGST: ${p.sgst_amount}<br>IGST: ${p.igst_amount}<br>Freight: ${p.freight_amount} Round: ${p.round_off}<br><b>Grand: Rs ${p.grand_total}</b>`;
-   tb.innerHTML+=`<tr>
-   <td>${i+1}</td>
-   <td><span style="background:var(--alab);padding:3px 8px;border-radius:6px;border:1px solid var(--line);font-weight:800">${p.po_no}</span><br><small>RFQ: ${p.rfq_no||''}</small><br><small>Date: ${p.po_date}</small><br><small style="color:${p.po_validity?'green':'#888'}">Validity: ${p.po_validity||'No validity'}</small></td>
-   <td><b>${p.sbu_name}</b><br><small>Delivery: ${(p.delivery_address||'').substring(0,60)}</small><br><small>Billing: ${(p.billing_address||'').substring(0,60)}</small><br><small>${p.same_as_delivery?'✅ Same as delivery':''}</small></td>
-   <td><b>${p.vendor}</b> (${p.vendor_code})<br><small>State: ${p.vendor_state}</small><br><small>ID: ${p.vendor_id}</small></td>
-   <td><span class="badge brass">${p.po_type}</span><br><small>Items: ${p.items_count} | Qty: ${p.total_qty}</small><div style="max-height:80px;overflow-y:auto;margin-top:4px">${itemsHtml}</div></td>
-   <td><small>${gstBreakup}</small></td>
-   <td><small>Type: ${p.delivery_type}<br>Schedule: ${p.delivery_schedule||''}<br>Pay: ${p.payment_terms_days} days<br>Rate Basis: ${p.rate_basis}<br>Freight: ${p.freight_terms}<br>TDS: ${p.tds_applicable} ${p.tds_percent}%<br>RCM: ${p.rcm_applicable} ${p.rcm_percent}%</small></td>
-   <td>${docsBadge}<br><span class="badge ${statusClass}">${p.status}</span><br><small>${p.created_by} ${p.created_at?.slice(0,10)||''}</small></td>
-   <td><button class="btn btn-b" onclick="editPO(${p.id})">Edit</button> <button class="btn btn-y" onclick="duplicatePO(${p.id})">Copy</button><br><button class="btn btn-w" style="margin-top:4px" onclick="emailPO(${p.id})">Email</button> <button class="btn btn-g" style="margin-top:4px" onclick="whatsappPO(${p.id})">WhatsApp</button><br><button class="btn btn-r" style="margin-top:4px" onclick="delPO(${p.id})">Del</button></td>
-   </tr>`;
- });
-}
-
+async function savePO(){ let sbuId=document.getElementById('po_sbu').value; if(!sbuId) return alert('SBU mandatory'); let vendorId=document.getElementById('po_vendor').value; if(!vendorId) return alert('Vendor mandatory'); let items=[]; let valid=true; document.querySelectorAll('#poItemsContainer > div[id^="poline_"]').forEach(div=>{ let product_id=div.querySelector('.po_product_id').value || div.querySelector('.po_product_select').value; let product_code=div.querySelector('.po_product_code').value; let product_name=div.querySelector('.po_product_name').value; let hsn=div.querySelector('.po_hsn').value; let spec=div.querySelector('.po_spec').value; let uom=div.querySelector('.po_uom').value; let qty=div.querySelector('.po_qty').value; let rate=div.querySelector('.po_rate').value; let gst_percent=div.querySelector('.po_gst_percent').value; let gst_type=div.querySelector('.po_gst_type').value; if(!product_id || !qty || !rate){ valid=false; } items.push({product_id: product_id?parseInt(product_id):null, product_code, product_name, hsn_code:hsn, spec, uom, qty:parseFloat(qty)||0, rate:parseFloat(rate)||0, gst_percent:parseFloat(gst_percent)||0, gst_type}); }); if(!valid || items.length===0) return alert('Add at least one line item with Product, Qty, Rate'); let docs={po_doc:document.getElementById('doc_po_doc').value, freight_slip:document.getElementById('doc_freight_slip').value}; let payload={rfq_no:document.getElementById('po_rfq_no').value, po_date:document.getElementById('po_date').value, po_validity:document.getElementById('po_validity').value, po_type:document.getElementById('po_type').value, sbu_id: sbuId?parseInt(sbuId):null, delivery_address:document.getElementById('po_delivery_address').value, billing_address:document.getElementById('po_billing_address').value, same_as_delivery:document.getElementById('po_same_as_delivery').checked, product_id: document.getElementById('po_product_id').value?parseInt(document.getElementById('po_product_id').value):null, product_name_filter: document.getElementById('po_product_filter').selectedOptions[0]?.text?.split('(')[0]?.trim()||'', vendor_id: vendorId?parseInt(vendorId):null, items:items, freight_amount:parseFloat(document.getElementById('po_freight').value)||0, round_off:parseFloat(document.getElementById('po_round_off').value)||0, delivery_type:document.getElementById('po_delivery_type').value, delivery_schedule:document.getElementById('po_delivery_schedule').value, payment_terms_days:parseInt(document.getElementById('po_payment_terms').value)||0, rate_basis:document.getElementById('po_rate_basis').value, freight_terms:document.getElementById('po_freight_terms').value, tds_applicable:document.getElementById('po_tds_applicable').value, tds_percent:parseFloat(document.getElementById('po_tds_percent').value)||0, rcm_applicable:document.getElementById('po_rcm_applicable').value, rcm_percent:parseFloat(document.getElementById('po_rcm_percent').value)||0, documents:docs, status:document.getElementById('po_status').value, approval_status:document.getElementById('po_status').value, created_by:document.getElementById('po_created_by').value}; let poId=document.getElementById('po_id').value; let url=poId?`/api/po/${poId}`:'/api/po'; let method=poId?'PUT':'POST'; let res=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); let j=await res.json(); if(res.ok){ alert(`PO ${poId?'Updated':'Created'}: ${j.po_no} - Grand Rs ${j.grand_total}`); closeAddPOPopup(); loadPOs(); } else alert(j.error||'Error'); }
+async function loadPOs(){ await loadPOMasters(); let search=document.getElementById('poSearch')?.value||''; let poType=document.getElementById('poTypeFilter')?.value||''; let status=document.getElementById('poStatusFilter')?.value||''; let sbu=document.getElementById('poSbuFilter')?.value||''; let vendor=document.getElementById('poVendorFilter')?.value||''; let params=new URLSearchParams({search, po_type:poType, status, sbu, vendor}); let r=await fetch(`/api/po?${params}`); let pos=await r.json(); document.getElementById('poCountBadge').innerText=`${pos.length} POs`; let tb=document.getElementById('poTbl'); tb.innerHTML=''; if(pos.length===0){ tb.innerHTML=`<tr><td colspan="9" style="text-align:center;padding:20px;color:#888">No POs - Add Purchase Order Button - v4.5 PO/26-27/PRODUCT/0001</td></tr>`; return; } pos.forEach((p,i)=>{ let itemsHtml=(p.items||[]).map(it=>`<span style="display:block;background:#FFFBEB;padding:3px 6px;border-radius:4px;margin:2px 0;border:1px solid var(--brass);font-size:10px"><b>${it.product_code}</b> ${it.product_name} - ${it.qty} ${it.uom} x ${it.rate} = ${it.amount} + GST ${it.gst_percent}% = ${it.total_amount}</span>`).join(''); let statusClass=p.status==='Approved'?'ok':p.status==='Draft'?'brass':p.status==='Closed'?'ok':'warn'; let docsBadge=p.has_docs?`<span class="badge ok">Docs</span>`:'<small style="color:#888">No docs</small>'; let gstBreakup=`Taxable: Rs ${p.taxable_value}<br>CGST: ${p.cgst_amount} SGST: ${p.sgst_amount}<br>IGST: ${p.igst_amount}<br>Freight: ${p.freight_amount} Round: ${p.round_off}<br><b>Grand: Rs ${p.grand_total}</b>`; tb.innerHTML+=`<tr><td>${i+1}</td><td><span style="background:var(--alab);padding:3px 8px;border-radius:6px;border:1px solid var(--line);font-weight:800">${p.po_no}</span><br><small>RFQ: ${p.rfq_no||''}</small><br><small>Date: ${p.po_date}</small><br><small>Validity: ${p.po_validity||''}</small></td><td><b>${p.sbu_name}</b><br><small>${(p.delivery_address||'').substring(0,60)}</small></td><td><b>${p.vendor}</b> (${p.vendor_code})<br><small>State: ${p.vendor_state}</small></td><td><span class="badge brass">${p.po_type}</span><br><small>Items: ${p.items_count} Qty: ${p.total_qty}</small><div style="max-height:80px;overflow-y:auto">${itemsHtml}</div></td><td><small>${gstBreakup}</small></td><td><small>Type: ${p.delivery_type}<br>Schedule: ${p.delivery_schedule||''}<br>Pay: ${p.payment_terms_days} days<br>Rate Basis: ${p.rate_basis}<br>TDS: ${p.tds_applicable} ${p.tds_percent}%<br>RCM: ${p.rcm_applicable}</small></td><td>${docsBadge}<br><span class="badge ${statusClass}">${p.status}</span><br><small>${p.created_by}</small></td><td><button class="btn btn-b" onclick="editPO(${p.id})">Edit</button> <button class="btn btn-y" onclick="duplicatePO(${p.id})">Copy</button><br><button class="btn btn-w" style="margin-top:4px" onclick="emailPO(${p.id})">Email</button> <button class="btn btn-g" style="margin-top:4px" onclick="whatsappPO(${p.id})">WhatsApp</button><br><button class="btn btn-r" style="margin-top:4px" onclick="delPO(${p.id})">Del</button></td></tr>`; }); }
 function resetPOFilters(){ document.getElementById('poSearch').value=''; document.getElementById('poTypeFilter').value=''; document.getElementById('poStatusFilter').value=''; document.getElementById('poSbuFilter').value=''; document.getElementById('poVendorFilter').value=''; loadPOs(); }
-
-async function editPO(id){
- let r=await fetch(`/api/po/${id}`); let p=await r.json();
- openAddPOPopup();
- setTimeout(()=>{
-   document.getElementById('po_id').value=p.id;
-   document.getElementById('po_rfq_no').value=p.rfq_no||'';
-   document.getElementById('po_no_preview').value=p.po_no;
-   document.getElementById('po_date').value=p.po_date||'';
-   document.getElementById('po_validity').value=p.po_validity||'';
-   document.getElementById('po_type').value=p.po_type||'Raw Material';
-   document.getElementById('po_sbu').value=p.sbu_id||'';
-   document.getElementById('po_delivery_address').value=p.delivery_address||'';
-   document.getElementById('po_billing_address').value=p.billing_address||'';
-   document.getElementById('po_same_as_delivery').checked=p.same_as_delivery;
-   document.getElementById('po_product_id').value=p.product_id||'';
-   // Find product filter by name
-   let prodFilter=document.getElementById('po_product_filter');
-   if(p.product_id) prodFilter.value=p.product_id;
-   document.getElementById('po_vendor').value=p.vendor_id||'';
-   document.getElementById('poItemsContainer').innerHTML='';
-   (p.items||[]).forEach(it=>{
-     addPOLineItem();
-     let lastId=document.querySelector('#poItemsContainer > div:last-child').id;
-     let div=document.getElementById(lastId);
-     div.querySelector('.po_product_id').value=it.product_id||'';
-     div.querySelector('.po_product_select').value=it.product_id||'';
-     div.querySelector('.po_product_code').value=it.product_code||'';
-     div.querySelector('.po_product_name').value=it.product_name||'';
-     div.querySelector('.po_hsn').value=it.hsn_code||'';
-     div.querySelector('.po_spec').value=it.spec||'';
-     div.querySelector('.po_uom').value=it.uom||'MT';
-     div.querySelector('.po_qty').value=it.qty||'';
-     div.querySelector('.po_rate').value=it.rate||'';
-     div.querySelector('.po_gst_percent').value=it.gst_percent||'';
-     div.querySelector('.po_gst_type').value=it.gst_type||'inter';
-     recalcPOLine(lastId);
-   });
-   document.getElementById('po_taxable').value=p.taxable_value;
-   document.getElementById('po_cgst').value=p.cgst_amount;
-   document.getElementById('po_sgst').value=p.sgst_amount;
-   document.getElementById('po_igst').value=p.igst_amount;
-   document.getElementById('po_freight').value=p.freight_amount;
-   document.getElementById('po_round_off').value=p.round_off;
-   document.getElementById('po_grand_total').value=p.grand_total;
-   document.getElementById('po_delivery_type').value=p.delivery_type||'One Time';
-   document.getElementById('po_delivery_schedule').value=p.delivery_schedule||'';
-   document.getElementById('po_payment_terms').value=p.payment_terms_days||'';
-   document.getElementById('po_rate_basis').value=p.rate_basis||'FOR';
-   document.getElementById('po_freight_terms').value=p.freight_terms||'';
-   document.getElementById('po_tds_applicable').value=p.tds_applicable||'Not Applicable';
-   document.getElementById('po_tds_percent').value=p.tds_percent||'';
-   document.getElementById('po_rcm_applicable').value=p.rcm_applicable||'No';
-   document.getElementById('po_rcm_percent').value=p.rcm_percent||'';
-   setPODocFromExisting('po_doc', p.documents?.po_doc||'');
-   setPODocFromExisting('freight_slip', p.documents?.freight_slip||'');
-   document.getElementById('doc_po_doc').value=p.documents?.po_doc||'';
-   document.getElementById('doc_freight_slip').value=p.documents?.freight_slip||'';
-   document.getElementById('po_status').value=p.status||'Draft';
-   document.getElementById('po_created_by').value=p.created_by||'Admin';
- }, 700);
-}
-
-async function duplicatePO(id){ if(!confirm('Duplicate PO? Creates copy with new PO No')) return; let r=await fetch(`/api/po/duplicate/${id}`,{method:'POST'}); let j=await r.json(); if(r.ok){ alert('PO Duplicated: '+j.po_no); loadPOs(); } else alert('Duplicate failed'); }
+async function editPO(id){ let r=await fetch(`/api/po/${id}`); let p=await r.json(); openAddPOPopup(); setTimeout(()=>{ document.getElementById('po_id').value=p.id; document.getElementById('po_rfq_no').value=p.rfq_no||''; document.getElementById('po_no_preview').value=p.po_no; document.getElementById('po_date').value=p.po_date||''; document.getElementById('po_validity').value=p.po_validity||''; document.getElementById('po_type').value=p.po_type||'Raw Material'; document.getElementById('po_sbu').value=p.sbu_id||''; document.getElementById('po_delivery_address').value=p.delivery_address||''; document.getElementById('po_billing_address').value=p.billing_address||''; document.getElementById('po_same_as_delivery').checked=p.same_as_delivery; document.getElementById('po_product_id').value=p.product_id||''; document.getElementById('po_product_filter').value=p.product_id||''; document.getElementById('po_vendor').value=p.vendor_id||''; document.getElementById('poItemsContainer').innerHTML=''; (p.items||[]).forEach(it=>{ addPOLineItem(); let lastId=document.querySelector('#poItemsContainer > div:last-child').id; let div=document.getElementById(lastId); div.querySelector('.po_product_id').value=it.product_id||''; div.querySelector('.po_product_select').value=it.product_id||''; div.querySelector('.po_product_code').value=it.product_code||''; div.querySelector('.po_product_name').value=it.product_name||''; div.querySelector('.po_hsn').value=it.hsn_code||''; div.querySelector('.po_spec').value=it.spec||''; div.querySelector('.po_uom').value=it.uom||'MT'; div.querySelector('.po_qty').value=it.qty||''; div.querySelector('.po_rate').value=it.rate||''; div.querySelector('.po_gst_percent').value=it.gst_percent||''; div.querySelector('.po_gst_type').value=it.gst_type||'inter'; recalcPOLine(lastId); }); document.getElementById('po_taxable').value=p.taxable_value; document.getElementById('po_cgst').value=p.cgst_amount; document.getElementById('po_sgst').value=p.sgst_amount; document.getElementById('po_igst').value=p.igst_amount; document.getElementById('po_freight').value=p.freight_amount; document.getElementById('po_round_off').value=p.round_off; document.getElementById('po_grand_total').value=p.grand_total; document.getElementById('po_delivery_type').value=p.delivery_type||'One Time'; document.getElementById('po_delivery_schedule').value=p.delivery_schedule||''; document.getElementById('po_payment_terms').value=p.payment_terms_days||''; document.getElementById('po_rate_basis').value=p.rate_basis||'FOR'; document.getElementById('po_freight_terms').value=p.freight_terms||''; document.getElementById('po_tds_applicable').value=p.tds_applicable||'Not Applicable'; document.getElementById('po_tds_percent').value=p.tds_percent||''; document.getElementById('po_rcm_applicable').value=p.rcm_applicable||'No'; document.getElementById('po_rcm_percent').value=p.rcm_percent||''; setPODocFromExisting('po_doc', p.documents?.po_doc||''); setPODocFromExisting('freight_slip', p.documents?.freight_slip||''); document.getElementById('doc_po_doc').value=p.documents?.po_doc||''; document.getElementById('doc_freight_slip').value=p.documents?.freight_slip||''; document.getElementById('po_status').value=p.status||'Draft'; }, 700); }
+async function duplicatePO(id){ if(!confirm('Duplicate PO?')) return; let r=await fetch(`/api/po/duplicate/${id}`,{method:'POST'}); let j=await r.json(); if(r.ok){ alert('Duplicated: '+j.po_no); loadPOs(); } else alert('Failed'); }
 async function delPO(id){ if(!confirm('Delete PO?')) return; await fetch(`/api/po/${id}`,{method:'DELETE'}); loadPOs(); }
-function emailPO(id){ fetch(`/api/po/${id}`).then(r=>r.json()).then(p=>{ let vendor=poVendors.find(v=>v.id==p.vendor_id); let email=vendor?.contacts?JSON.parse(vendor.contacts)[0]?.email:''; let subject=`Purchase Order ${p.po_no}`; let body=`Dear ${p.vendor},\nPlease find PO ${p.po_no} dated ${p.po_date} for ${p.product_name_filter} - Grand Total Rs ${p.grand_total}\nSBU: ${p.sbu_name}\nDelivery: ${p.delivery_address}`; window.open(`mailto:${email||''}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`); }); }
-function whatsappPO(id){ fetch(`/api/po/${id}`).then(r=>r.json()).then(p=>{ let vendor=poVendors.find(v=>v.id==p.vendor_id); let contacts=[]; try{ contacts=JSON.parse(vendor.contacts||'[]'); }catch{} let whatsapp=contacts.find(c=>c.whatsapp_no)?.whatsapp_no || contacts[0]?.mobile_no || ''; let msg=`*Purchase Order ${p.po_no}*\nDate: ${p.po_date}\nSBU: ${p.sbu_name}\nProduct: ${p.product_name_filter}\nGrand Total: Rs ${p.grand_total}\nPayment Terms: ${p.payment_terms_days} days\nDelivery: ${p.delivery_type} ${p.delivery_schedule}`; if(whatsapp) window.open(`https://wa.me/91${whatsapp}?text=${encodeURIComponent(msg)}`); else alert('No whatsapp found for vendor - Message:\n'+msg); }); }
+function emailPO(id){ fetch(`/api/po/${id}`).then(r=>r.json()).then(p=>{ let subject=`Purchase Order ${p.po_no}`; let body=`Dear ${p.vendor},\nPO ${p.po_no} dated ${p.po_date} Grand Rs ${p.grand_total}\nSBU: ${p.sbu_name}`; window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`); }); }
+function whatsappPO(id){ fetch(`/api/po/${id}`).then(r=>r.json()).then(p=>{ let msg=`*PO ${p.po_no}*\nDate: ${p.po_date}\nSBU: ${p.sbu_name}\nGrand: Rs ${p.grand_total}\nPay: ${p.payment_terms_days} days`; window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`); }); }
 
 
 
