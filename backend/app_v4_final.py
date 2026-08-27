@@ -1,13 +1,12 @@
 
 """
-LEMON ERP - MASTER WORKFLOW - v4.4.7
-BASE: v4.4.6 = v4.4.3 Products refined + SBUs final
-Fixes in v4.4.7:
-- Kiln: Lining Installation Date + Health Status asked ONCE per kiln (under Kiln No), NOT per product. products_capacity JSON now only {product_id, capacity_per_day}
-- Edit SBU bug fixed: openAddSBU() first, then populate fields in setTimeout, so sbu_id/name/address not erased, no duplicate creation
-- Duplicate SBU feature: duplicateSBU(id) - creates copy with ' - Copy' suffix for names
-- UI Clean: Removed 2 P tags: "Module name Kilns renamed to SBUs..." and "b-Add New SBU Button Below Heading..."
-- SBU List: Tabular format clean - tables for Kilns, Sizing, Hydration, Stock Yards
+LEMON ERP - MASTER WORKFLOW - v4.4.8
+BASE: v1.3.py = v4.4.7 Fixed + Masters reordered
+Fixes in v4.4.8:
+- Sidebar reorganized: Moved Product Category, Products, SBUs from MAIN to MASTERS in sequence: Product Category first, Products second, SBUs third - to ensure data entry flow Category -> Product -> SBU
+- MAIN now only Dashboard
+- MASTERS order: Product Category, Products, SBUs, Vendors, Customers, Cost, Mobile
+- Everything else 100% unchanged from v1.3.py
 DB: lemon_erp_v44_1_category.db single file
 File: backend/app_v4_final.py
 URL: https://lemon-erp.onrender.com
@@ -19,8 +18,7 @@ from datetime import datetime
 import json, os, re
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'lemon-erp-v44-7-sbus-fixed-tabular-duplicate'
-# Render persistent path - uses /tmp if no disk attached
+app.config['SECRET_KEY'] = 'lemon-erp-v44-8-masters-reordered'
 db_path = os.environ.get('DATABASE_PATH', os.path.join(os.path.dirname(__file__), '..', 'instance', 'lemon_erp_v44_1_category.db'))
 os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
 app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.abspath(db_path)}'
@@ -310,7 +308,7 @@ def sbu_list():
                 except: raw=[]
                 for it in raw:
                     prod=all_prods.get(it.get('product_id'))
-                    pcs.append({'product_id':it.get('product_id'),'product_name':prod.name if prod else f"ID {it.get('product_id')}", 'product_code': getattr(prod, 'product_code', '') if prod else '', 'capacity_per_day': it.get('capacity_per_day') or it.get('capacity') or 0, 'capacity': it.get('capacity_per_day') or 0})
+                    pcs.append({'product_id':it.get('product_id'),'product_name':prod.name if prod else f"ID {it.get('product_id")}', 'product_code':prod.product_code if prod else '', 'capacity_per_day': it.get('capacity_per_day') or it.get('capacity') or 0, 'capacity': it.get('capacity_per_day') or 0})
                 return {'id':k.id,'kiln_no':k.kiln_no,'lining_installation_date':k.lining_installation_date,'lining_date':k.lining_installation_date,'health_status':k.health_status,'products_capacity':pcs,'products_capacity_raw':k.products_capacity}
             def res_sz(sp):
                 try: raw=json.loads(sp.products_capacity) if sp.products_capacity else []
@@ -318,7 +316,7 @@ def sbu_list():
                 pcs=[]
                 for it in raw:
                     prod=all_prods.get(it.get('product_id'))
-                    pcs.append({'product_id':it.get('product_id'),'product_name':prod.name if prod else f"ID {it.get('product_id')}", 'product_code': getattr(prod, 'product_code', '') if prod else '', 'capacity_per_hour':it.get('capacity_per_hour') or it.get('capacity') or 0, 'capacity':it.get('capacity_per_hour') or 0, 'machineries':it.get('machineries','')})
+                    pcs.append({'product_id':it.get('product_id'),'product_name':prod.name if prod else f"ID {it.get('product_id")}', 'product_code':prod.product_code if prod else '', 'capacity_per_hour':it.get('capacity_per_hour') or it.get('capacity') or 0, 'capacity':it.get('capacity_per_hour') or 0, 'machineries':it.get('machineries','')})
                 return {'id':sp.id,'plant_no':sp.plant_no,'products_capacity':pcs,'products_capacity_raw':sp.products_capacity,'machineries':sp.machineries}
             def res_hy(h):
                 try: raw=json.loads(h.products_capacity) if h.products_capacity else []
@@ -326,7 +324,7 @@ def sbu_list():
                 pcs=[]
                 for it in raw:
                     prod=all_prods.get(it.get('product_id'))
-                    pcs.append({'product_id':it.get('product_id'),'product_name':prod.name if prod else '', 'product_code': getattr(prod, 'product_code', '') if prod else '', 'capacity_per_hour':it.get('capacity_per_hour') or 0, 'machineries':it.get('machineries','')})
+                    pcs.append({'product_id':it.get('product_id'),'product_name':prod.name if prod else '', 'product_code':prod.product_code if prod else '', 'capacity_per_hour':it.get('capacity_per_hour') or 0, 'machineries':it.get('machineries','')})
                 return {'id':h.id,'plant_no':h.plant_no,'products_capacity':pcs,'products_capacity_raw':h.products_capacity,'machineries':h.machineries}
             def res_y(y):
                 try: raw=json.loads(y.yard_items) if y.yard_items else []
@@ -334,7 +332,7 @@ def sbu_list():
                 items=[]
                 for it in raw:
                     prod=all_prods.get(it.get('product_id'))
-                    items.append({'product_id':it.get('product_id'),'product_name':prod.name if prod else '', 'product_code': getattr(prod, 'product_code', '') if prod else '', 'opening_stock':it.get('opening_stock') or it.get('opening') or 0})
+                    items.append({'product_id':it.get('product_id'),'product_name':prod.name if prod else '', 'product_code':prod.product_code if prod else '', 'opening_stock':it.get('opening_stock') or it.get('opening') or 0})
                 return {'id':y.id,'yard_name':y.yard_name,'yard_items':items,'yard_items_raw':y.yard_items}
             out.append({'id':s.id,'sbu_name':s.sbu_name,'address':s.address,'kilns':[res_k(k) for k in kilns],'sizing_plants':[res_sz(sp) for sp in sizings],'hydration_plants':[res_hy(h) for h in hydrations],'stock_yards':[res_y(y) for y in yards]})
         return jsonify(out)
@@ -514,14 +512,11 @@ input,select,textarea{padding:8px 10px;border-radius:7px;border:1.5px solid var(
 .sbu-card{border:1.5px solid var(--line);border-radius:12px;padding:14px;margin:12px 0;background:white}
 </style></head>
 <body>
-<div class="topnav"><div class="brand">🍋 LEMON <span>ERP</span> v4.4.7 - SBUs Fixed Tabular Duplicate - Base v4.4.3</div><button class="btn btn-y" onclick="location.reload()">Reload</button></div>
+<div class="topnav"><div class="brand">🍋 LEMON <span>ERP</span> v4.4.8 - Masters Reordered Category→Products→SBUs - Base v1.3.py</div><button class="btn btn-y" onclick="location.reload()">Reload</button></div>
 <div class="layout">
 <div class="sidebar">
 <h4>MAIN</h4>
 <div class="menu active" onclick="openTab('dash')"><i class="bi bi-speedometer2"></i> Dashboard</div>
-<div class="menu" onclick="openTab('sbus')"><i class="bi bi-building"></i> SBUs</div>
-<div class="menu" onclick="openTab('products')"><i class="bi bi-bag"></i> Products</div>
-<div class="menu" onclick="openTab('product_category')"><i class="bi bi-tags"></i> Product Category</div>
 <h4>OPERATIONS</h4>
 <div class="menu" onclick="openTab('stock')"><i class="bi bi-box-seam"></i> Stock</div>
 <div class="menu" onclick="openTab('make')"><i class="bi bi-gear"></i> Make</div>
@@ -530,6 +525,9 @@ input,select,textarea{padding:8px 10px;border-radius:7px;border:1.5px solid var(
 <div class="menu" onclick="openTab('pack')"><i class="bi bi-box"></i> Pack</div>
 <div class="menu" onclick="openTab('qr')"><i class="bi bi-qr-code"></i> QR</div>
 <h4>MASTERS</h4>
+<div class="menu" onclick="openTab('product_category')"><i class="bi bi-tags"></i> Product Category</div>
+<div class="menu" onclick="openTab('products')"><i class="bi bi-bag"></i> Products</div>
+<div class="menu" onclick="openTab('sbus')"><i class="bi bi-building"></i> SBUs</div>
 <div class="menu" onclick="openTab('vendors')"><i class="bi bi-people"></i> Vendors</div>
 <div class="menu" onclick="openTab('customers')"><i class="bi bi-person"></i> Customers</div>
 <div class="menu" onclick="openTab('cost')"><i class="bi bi-currency-rupee"></i> Cost</div>
@@ -538,9 +536,9 @@ input,select,textarea{padding:8px 10px;border-radius:7px;border:1.5px solid var(
 <div class="content">
 <!-- DASH -->
 <div id="dash" class="tabcontent">
-<div class="card"><h3>Dashboard - v4.4.7 Base v4.4.3 + SBUs Fixed Tabular Duplicate</h3>
+<div class="card"><h3>Dashboard - v4.4.8 Masters Reordered - Category → Products → SBUs - Base v1.3.py</h3>
 <div class="row"><div class="card kpi"><div>Total Value</div><div class="val" id="totalVal">Rs 0 Lakh</div></div><div class="card kpi"><div>SBUs</div><div class="val" id="sbuCountDash">0</div></div><div class="card kpi"><div>Products</div><div class="val" id="prodCountDash">0</div></div><div class="card kpi"><div>Categories</div><div class="val" id="catCountDash">0</div></div></div>
-<div class="card"><b>v4.4.7 Changes:</b> 1) Kiln Lining+Health asked once per kiln (not per product) 2) Edit bug fixed - no duplicate creation 3) Duplicate SBU button 4) Removed extra P tags 5) Tabular clean SBU cards</div>
+<div class="card"><b>v4.4.8 Changes:</b> Sidebar reorganized - MAIN only Dashboard, MASTERS sequence: 1) Product Category 2) Products 3) SBUs 4) Vendors 5) Customers 6) Cost 7) Mobile - Flow: Category → Product → SBU - Everything else unchanged from v1.3.py / v4.4.7 Fixed Tabular</div>
 <div id="alerts"></div>
 </div></div>
 
