@@ -1,10 +1,12 @@
 """
-🍋 LEMON ERP v4.4.7 - Base v4.4.6 unchanged, only SBUs module changes
-1. Kiln lining and health status is for kiln, not per product - put under kiln name asked once - when add product dont club lining and health
-2. Fix edit bug - edit creates new SBU and erases name/address - fix + keep edit + provide duplicate of SBU option
+🍋 LEMON ERP v4.4.8 - Pick v4.4.6 and tweak ONLY these 4 changes - Keep everything else unchanged - Do not change other databases
+Base: v4.4.6 (which itself is Base v4.4.3 Products refined + SBUs with X + Delete + Yard Items all category)
+Only 4 changes in SBUs module:
+1. While adding kilns lining and health status is asked repeatedly for all product - instead it is for the kiln - put under kiln name asked once - when add product dont club lining and health
+2. When edit any SBU it create new SBU and name and address erased, fix bug + keep edit + Provide duplicate option
 3. Remove text line "Module name Kilns renamed to SBUs - Landing page heading Strategic Business Units" after Heading and line "b-Add New SBU Button Below Heading - Popup with X closing option on top right" after add button
 4. Arrange data of SBUs in tabular format so as to look clean
-Keep everything else unchanged in v4.4.6 - Products refined etc
+Note: Do not change other databases - Only above 4 changes
 """
 
 from flask import Flask, request, jsonify
@@ -13,7 +15,8 @@ from datetime import datetime
 import json
 
 app = Flask(__name__)
-app.secret_key = 'lemon-erp-v44-7-sbus-clean-tabular-2026'
+app.secret_key = 'lemon-erp-v44-8-base-v446-only-4-changes-db-unchanged'
+# DO NOT CHANGE OTHER DATABASES - Use same DB file as v4.4.6 - lemon_erp_v44_1_category.db - No other DB changes
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///lemon_erp_v44_1_category.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
@@ -171,7 +174,7 @@ def generate_product_code(category_name, count):
 def index():
     return """
 <!DOCTYPE html>
-<html><head><title>Lemon ERP v4.4.7 - SBUs Clean Tabular</title>
+<html><head><title>Lemon ERP v4.4.8 - SBUs Only 4 Changes - DB Unchanged</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
 <style>
@@ -186,10 +189,8 @@ def index():
 .menu:hover{background:var(--alab)} .menu.active{background:var(--green);color:var(--brass)}
 .content{flex:1;padding:14px;max-width:1500px}
 .card{background:white;border-radius:10px;padding:14px;margin:8px 0;box-shadow:0 2px 6px rgba(0,0,0,0.04);border:1px solid var(--line)}
-.card h3{margin:0 0 10px;font-size:13px;font-weight:800}
 .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
-.kpi{border-left:4px solid var(--brass);padding:12px}
-.kpi .val{font-size:20px;font-weight:900}
+.kpi{border-left:4px solid var(--brass);padding:12px} .kpi .val{font-size:20px;font-weight:900}
 .btn{padding:7px 12px;border-radius:7px;border:none;cursor:pointer;font-weight:700;font-size:11px}
 .btn-g{background:var(--green);color:white} .btn-y{background:var(--lemon);color:var(--green)} .btn-w{background:white;color:var(--green);border:1px solid var(--line)} .btn-r{background:#C5221F;color:white} .btn-b{background:#E8F0FE;color:#1A2E1E;border:1px solid #C2D6FF} .btn-o{background:#FFF3E0;color:#8C4A00;border:1px solid #FFD8A8}
 .badge{padding:3px 8px;border-radius:12px;font-size:10px;font-weight:800}
@@ -200,8 +201,7 @@ input,select,textarea{padding:8px 10px;border-radius:7px;border:1.5px solid var(
 .hidden{display:none !important}
 .form-box{background:var(--alab);padding:12px;border-radius:8px;border:1px dashed var(--brass);margin-bottom:10px}
 .modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(26,46,30,0.65);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(4px)}
-.modal-content{background:white;border-radius:14px;width:100%;max-width:1000px;max-height:94vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.35);border:1px solid var(--brass);animation:slideUp 0.25s ease}
-@keyframes slideUp{from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1}}
+.modal-content{background:white;border-radius:14px;width:100%;max-width:1000px;max-height:94vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.35);border:1px solid var(--brass)}
 .modal-header{padding:16px 20px;border-bottom:2px solid var(--line);display:flex;justify-content:space-between;align-items:center;background:var(--alab);border-radius:14px 14px 0 0;position:sticky;top:0;z-index:2}
 .modal-body{padding:16px 20px;overflow-y:auto;flex:1}
 .modal-footer{padding:14px 20px;border-top:2px solid var(--line);background:var(--alab);border-radius:0 0 14px 14px;display:flex;gap:10px;position:sticky;bottom:0;z-index:2}
@@ -213,15 +213,13 @@ input,select,textarea{padding:8px 10px;border-radius:7px;border:1.5px solid var(
 .tooltip{position:relative;cursor:pointer;border-bottom:1px dashed var(--brass)}
 .tooltip .tooltiptext{visibility:hidden;width:260px;background:var(--green);color:white;text-align:left;border-radius:8px;padding:10px;position:absolute;z-index:10;bottom:125%;left:50%;margin-left:-130px;opacity:0;transition:opacity 0.2s;font-size:11px;line-height:1.4}
 .tooltip:hover .tooltiptext{visibility:visible;opacity:1}
-.sbu-card{border-left:5px solid var(--green);margin:14px 0}
-.sbu-header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding:12px;background:var(--alab);border-radius:10px 10px 0 0;border-bottom:2px solid var(--line)}
-.sbu-table{margin:0;border-radius:0 0 10px 10px;overflow:hidden}
+.sbu-card{border-left:5px solid var(--green);margin:14px 0;padding:0;overflow:hidden}
+.sbu-header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding:12px;background:var(--alab);border-bottom:2px solid var(--line)}
 .sbu-table th{background:var(--green);color:var(--brass);font-size:11px;padding:10px 8px}
-.sbu-table td{font-size:11px;padding:8px}
 .tabular-section{margin:12px 0;border:1.5px solid var(--line);border-radius:10px;overflow:hidden}
-.tabular-header{background:var(--green);color:white;padding:10px 14px;font-weight:800;font-size:12px;display:flex;justify-content:space-between;align-items:center}
+.tabular-header{background:var(--green);color:white;padding:10px 14px;font-weight:800;font-size:12px}
 </style></head><body>
-<div class="topnav"><div class="brand">🍋 Lemon ERP <span class="l">v4.4.7 Clean Tabular</span> <span style="font-size:10px;background:var(--brass);color:var(--green);padding:2px 6px;border-radius:10px;margin-left:6px">SBUs Fixed + Duplicate + Tabular</span></div><div><button class="btn btn-y" onclick="location.reload()">Reload</button></div></div>
+<div class="topnav"><div class="brand">🍋 Lemon ERP <span class="l">v4.4.8 - Pick v4.4.6 + 4 Changes Only - DB Unchanged</span></div><div><button class="btn btn-y" onclick="location.reload()">Reload</button></div></div>
 <div class="layout">
 <div class="sidebar">
 <h4>Main</h4>
@@ -233,7 +231,7 @@ input,select,textarea{padding:8px 10px;border-radius:7px;border:1.5px solid var(
 <h4>Masters</h4>
 <div class="menu" onclick="openTab('product_categories')"><i class="bi bi-tags"></i> Product Category</div>
 <div class="menu" onclick="openTab('products')"><i class="bi bi-bag"></i> Products *Refined v4.4.3</div>
-<div class="menu" onclick="openTab('sbus')" style="background:var(--alab);border:1.5px solid var(--brass)"><i class="bi bi-building"></i> SBUs *Clean Tabular</div>
+<div class="menu" onclick="openTab('sbus')" style="background:var(--alab);border:1.5px solid var(--brass)"><i class="bi bi-building"></i> SBUs *v4.4.8 4 Fixes</div>
 <div class="menu" onclick="openTab('vendors')"><i class="bi bi-people"></i> Vendors</div>
 <div class="menu" onclick="openTab('customers')"><i class="bi bi-person"></i> Customers</div>
 <div class="menu" onclick="openTab('pack')"><i class="bi bi-box"></i> Pack</div>
@@ -245,7 +243,7 @@ input,select,textarea{padding:8px 10px;border-radius:7px;border:1.5px solid var(
 
 <div class="content">
 <div id="dash" class="tabcontent">
-<div class="card"><h3>Dash - v4.4.7 Clean Tabular - SBUs Fixed</h3>
+<div class="card"><h3>Dash - v4.4.8 - Pick v4.4.6 + Only 4 Changes - Do not change other databases</h3>
 <div class="kpi-grid">
 <div class="card kpi"><div style="font-size:11px">Total Value</div><div class="val" id="totalVal">Rs 0 Lakh</div></div>
 <div class="card kpi"><div style="font-size:11px">SBUs</div><div class="val" id="sbuCountDash">0</div></div>
@@ -253,18 +251,13 @@ input,select,textarea{padding:8px 10px;border-radius:7px;border:1.5px solid var(
 <div class="card kpi"><div style="font-size:11px">Categories</div><div class="val" id="catCountDash">0</div></div>
 </div>
 </div>
-<div class="card"><h3>v4.4.7 Changes - Only SBUs Module</h3><ul style="font-size:11px;margin:6px 0"><li>1. Kiln lining and health status moved under Kiln Name - asked once per kiln - not repeated for all products - Product add only Product name + Capacity/Day</li><li>2. Edit bug fixed - edit no longer creates new SBU and erases name/address - Edit keeps data - Duplicate option added</li><li>3. Removed text lines after heading and after Add New SBU button - Clean landing</li><li>4. Arrange data of SBUs in tabular format - clean tables</li></ul></div>
+<div class="card"><h3>Only 4 Changes - Other Databases Unchanged</h3><ul style="font-size:11px"><li>1. Kiln lining and health status is for kiln, put under kiln name asked once - Product add only Product name + Capacity/Day - dont club lining/health</li><li>2. Edit bug fix - edit no longer creates new SBU and erases name/address - Keep edit button - Duplicate option to avoid filling again</li><li>3. Remove text lines after heading and after Add New SBU button</li><li>4. Arrange SBUs data in tabular format clean</li><li>Note: Do not change other databases - DB File lemon_erp_v44_1_category.db unchanged - Product Category + Products + Vendors + Customers + Pack + QR + MO + PO + GRN + Dispatch tables untouched</li></ul></div>
 <div class="card"><h3>Alerts</h3><div id="alerts">No products yet</div></div>
 </div>
 
 <div id="product_categories" class="tabcontent hidden">
-<div class="card"><h3><i class="bi bi-tags"></i> Product Category Master - DB File for Further Use - v4.4.3 Unchanged</h3>
-<p style="font-size:11px">DB File: lemon_erp_v44_1_category.db - Table: product_category</p>
-<div class="form-box" style="background:#FFFBEB;border:2px solid var(--brass)">
-<h3>Add Product Category - 1 Input Field</h3>
-<input type="hidden" id="cat_id">
-<div class="row" style="align-items:end"><div style="flex:3"><label style="font-size:11px;font-weight:700">Category Name *</label><input id="cat_name" placeholder="Category Name"></div><div style="flex:1"><button class="btn btn-g" style="width:100%;padding:10px" onclick="saveCategory()">Save Category</button><button class="btn btn-w" style="width:100%;margin-top:4px" onclick="resetCatForm()">Reset</button></div></div>
-</div>
+<div class="card"><h3><i class="bi bi-tags"></i> Product Category Master - DB Unchanged</h3>
+<div class="form-box" style="background:#FFFBEB;border:2px solid var(--brass)"><h3>Add Product Category - 1 Input Field</h3><input type="hidden" id="cat_id"><div class="row" style="align-items:end"><div style="flex:3"><label style="font-size:11px;font-weight:700">Category Name *</label><input id="cat_name" placeholder="Category Name"></div><div style="flex:1"><button class="btn btn-g" style="width:100%;padding:10px" onclick="saveCategory()">Save Category</button><button class="btn btn-w" style="width:100%;margin-top:4px" onclick="resetCatForm()">Reset</button></div></div></div>
 <div class="card"><h3>List of Categories Added</h3><div id="categoryList">No categories</div></div>
 </div>
 </div>
@@ -272,82 +265,69 @@ input,select,textarea{padding:8px 10px;border-radius:7px;border:1.5px solid var(
 <div id="products" class="tabcontent hidden">
 <div class="card" style="text-align:center;padding:20px">
 <h1 style="text-align:center;margin:0 0 14px;font-size:22px;font-weight:900"><i class="bi bi-bag"></i> Products</h1>
-<p style="font-size:11px;color:#666">Landing Page Heading Products centrally aligned - HSN + Description + Auto Code + Category-wise + Hover narration - v4.4.3 Unchanged</p>
+<p style="font-size:11px;color:#666">Products refined v4.4.3 unchanged - DB unchanged</p>
 <button class="btn btn-y" style="padding:12px 28px;font-size:14px;font-weight:800" onclick="openAddProductPopup()"><i class="bi bi-plus-lg"></i> Add New Product</button>
 </div>
-<div id="productListContainer">Loading Products category wise...</div>
+<div id="productListContainer">Loading Products...</div>
 </div>
 
 <div id="sbus" class="tabcontent">
 <div class="card" style="text-align:center;padding:24px">
-<!-- 3. Remove text line after Heading - Clean -->
 <h1 style="text-align:center;margin:0 0 18px;font-size:26px;font-weight:900"><i class="bi bi-building"></i> Strategic Business Units</h1>
 <button class="btn btn-y" style="padding:14px 36px;font-size:15px;font-weight:800" onclick="openAddSBU()"><i class="bi bi-plus-lg"></i> Add New SBU</button>
-<!-- Removed line b-Add New SBU Button Below Heading - Popup with X -->
 </div>
-<div id="sbuList">Loading SBUs in tabular format...</div>
-</div>
-
-<div id="stock" class="tabcontent hidden"><div class="card"><h3>Stock - v4.4 Unchanged</h3><div class="row"><select id="fUnit"><option value="All">All Units</option><option>Unit 1 72MT</option><option>Unit 2 84MT</option><option>Unit 3 125MT</option></select><button class="btn btn-g" onclick="loadStock()">Filter</button></div></div><div class="card"><h3>Raw</h3><div id="rawTbl">No products</div></div><div class="card"><h3>WIP</h3><div id="wipTbl">No products</div></div><div class="card"><h3>Finished</h3><div id="finTbl">No products</div></div></div>
-<div id="make" class="tabcontent hidden"><div class="card"><h3>Make - v4.4 Unchanged</h3><div class="form-box"><div class="row"><select id="make_wc"></select><select id="make_type"><option>Kiln</option><option>Sizing</option><option>Hydration</option></select><input id="make_unit" placeholder="Unit" value="Unit 1 72MT"></div><div class="row"><input id="make_lime" type="number" placeholder="Limestone MT"><input id="make_pet" type="number" placeholder="Petcoke MT"><input id="make_out" type="number" placeholder="Output MT"></div><div class="row"><input id="make_waste" type="number" placeholder="Wastage"><input id="make_inProd" placeholder="Input Product"><input id="make_outProd" placeholder="Output Product"></div><div class="row"><input id="make_op" placeholder="Operator"><button class="btn btn-g" onclick="createMO()">Create MO</button></div></div><div id="moList">No MO</div></div></div>
-<div id="buy" class="tabcontent hidden"><div class="card"><h3>Buy - v4.4 Unchanged</h3><div class="form-box"><h3>New PO</h3><div class="row"><select id="po_vendor"></select><input id="po_mat" placeholder="Material"><input id="po_qty" type="number" placeholder="Qty"><input id="po_rate" type="number" placeholder="Rate"></div><div class="row"><select id="po_unit"><option>Unit 1 72MT</option><option>Unit 2 84MT</option><option>Unit 3 125MT</option></select><select id="po_status"><option>Draft</option><option>Sent</option><option>Received</option></select><button class="btn btn-g" onclick="createPO()">Create PO</button></div></div><div class="form-box"><h3>New GRN</h3><div class="row"><input id="g_vehicle" placeholder="Vehicle No"><input id="g_material" placeholder="Material"><select id="g_unit"><option>Unit 1 72MT</option><option>Unit 2 84MT</option><option>Unit 3 125MT</option></select></div><div class="row"><input id="g_gross" type="number" placeholder="Gross kg"><input id="g_tare" type="number" placeholder="Tare kg"><select id="g_vendor"></select><button class="btn btn-y" onclick="createGRN()">Save GRN</button></div></div><div class="card"><h3>PO List</h3><div id="poList">No PO</div></div><div class="card"><h3>GRN List</h3><div id="grnList">No GRN</div></div></div></div>
-<div id="sell" class="tabcontent hidden"><div class="card"><h3>Sell - v4.4 Unchanged</h3><div class="form-box"><div class="row"><select id="d_customer"></select><input id="d_vehicle" placeholder="Vehicle No"><select id="d_product"></select><input id="d_qty" type="number" placeholder="Qty MT"></div><div class="row"><input id="d_qr" placeholder="QR Bags"><select id="d_unit"><option>Unit 1 72MT</option><option>Unit 2 84MT</option><option>Unit 3 125MT</option></select><button class="btn btn-g" onclick="createDispatch()">Create Dispatch</button></div></div><div class="card"><h3>Dispatch List</h3><div id="dispatchList">No Dispatch</div></div></div></div>
-<div id="vendors" class="tabcontent hidden"><div class="card"><h3>Vendors - v4.4 Unchanged</h3><div class="form-box"><h3>Add New Vendor</h3><input type="hidden" id="vend_id"><div class="row"><input id="vend_name" placeholder="Name"><select id="vend_type"><option>Limestone</option><option>Petcoke</option><option>Packaging</option><option>Transport</option><option>Trading</option></select><input id="vend_gst" placeholder="GST No"></div><div class="row"><input id="vend_contact" placeholder="Contact"><input id="vend_credit" type="number" placeholder="Credit Limit"><input id="vend_due" type="number" placeholder="Pending Due"><button class="btn btn-g" onclick="saveVendor()">Save Vendor</button><button class="btn btn-w" onclick="resetVendForm()">Reset</button></div></div><div id="vendorTbl">No vendors</div></div></div>
-<div id="customers" class="tabcontent hidden"><div class="card"><h3>Customers - v4.4 Unchanged</h3><div class="form-box"><h3>Add New Customer</h3><input type="hidden" id="cust_id"><div class="row"><input id="cust_name" placeholder="Name"><select id="cust_type"><option>Cement</option><option>Steel</option><option>Chemical</option><option>Trader</option></select><input id="cust_gst" placeholder="GST No"></div><div class="row"><input id="cust_contact" placeholder="Contact"><input id="cust_recv" type="number" placeholder="Pending Receivable"><button class="btn btn-g" onclick="saveCustomer()">Save Customer</button><button class="btn btn-w" onclick="resetCustForm()">Reset</button></div></div><div id="customerTbl">No customers</div></div></div>
-<div id="pack" class="tabcontent hidden"><div class="card"><h3>Pack - v4.4 Unchanged</h3><div class="form-box"><h3>Add New Pack</h3><input type="hidden" id="pack_id"><div class="row"><input id="pack_type" placeholder="Bag Type"><select id="pack_cat"><option>40kg</option><option>Jumbo</option></select><input id="pack_cap" type="number" placeholder="Capacity MT"></div><div class="row"><input id="pack_closing" type="number" placeholder="Closing"><input id="pack_min" type="number" placeholder="Min"><input id="pack_rate" type="number" placeholder="Rate"><select id="pack_unit"><option>Unit 1 72MT</option><option>Unit 2 84MT</option><option>Unit 3 125MT</option></select></div><div class="row"><button class="btn btn-g" onclick="savePack()">Save Pack</button><button class="btn btn-w" onclick="resetPackForm()">Reset</button></div></div><div id="packTbl">No packs</div></div></div>
-<div id="qr" class="tabcontent hidden"><div class="card"><h3>QR - v4.4 Unchanged</h3><div class="form-box"><div class="row"><select id="qr_product"></select><input id="qr_weight" type="number" value="1.2"><select id="qr_unit"><option>Unit 1 72MT</option><option>Unit 2 84MT</option><option>Unit 3 125MT</option></select><button class="btn btn-y" onclick="genQR()">Generate QR</button></div><div style="text-align:center;background:var(--alab);padding:10px;border-radius:8px;margin-top:8px"><div id="qrResult"></div><div id="qrImg"></div></div></div><div class="card"><h3>QR List</h3><div id="qrList">No QR</div></div></div></div>
-<div id="cost" class="tabcontent hidden"><div class="card"><h3>Cost - v4.4 Unchanged</h3><div id="costVal">Rs 0 Lakh</div><div id="costTbl">No data</div></div></div>
-<div id="mobile" class="tabcontent hidden"><div class="card"><h3>Mobile - v4.4 Unchanged</h3></div></div>
-</div>
+<div id="sbuList">Loading SBUs tabular clean...</div>
 </div>
 
-<!-- PRODUCTS POPUP - v4.4.3 UNCHANGED -->
+<div id="stock" class="tabcontent hidden"><div class="card"><h3>Stock - DB Unchanged</h3><div class="row"><select id="fUnit"><option value="All">All Units</option><option>Unit 1 72MT</option><option>Unit 2 84MT</option><option>Unit 3 125MT</option></select><button class="btn btn-g" onclick="loadStock()">Filter</button></div></div><div class="card"><h3>Raw</h3><div id="rawTbl">No products</div></div><div class="card"><h3>WIP</h3><div id="wipTbl">No products</div></div><div class="card"><h3>Finished</h3><div id="finTbl">No products</div></div></div>
+<div id="make" class="tabcontent hidden"><div class="card"><h3>Make - DB Unchanged</h3><div class="form-box"><div class="row"><select id="make_wc"></select><select id="make_type"><option>Kiln</option><option>Sizing</option><option>Hydration</option></select><input id="make_unit" placeholder="Unit" value="Unit 1 72MT"></div><div class="row"><input id="make_lime" type="number" placeholder="Limestone MT"><input id="make_pet" type="number" placeholder="Petcoke MT"><input id="make_out" type="number" placeholder="Output MT"></div><div class="row"><input id="make_waste" type="number" placeholder="Wastage"><input id="make_inProd" placeholder="Input Product"><input id="make_outProd" placeholder="Output Product"></div><div class="row"><input id="make_op" placeholder="Operator"><button class="btn btn-g" onclick="createMO()">Create MO</button></div></div><div id="moList">No MO</div></div></div>
+<div id="buy" class="tabcontent hidden"><div class="card"><h3>Buy - DB Unchanged</h3><div class="form-box"><h3>New PO</h3><div class="row"><select id="po_vendor"></select><input id="po_mat" placeholder="Material"><input id="po_qty" type="number" placeholder="Qty"><input id="po_rate" type="number" placeholder="Rate"></div><div class="row"><select id="po_unit"><option>Unit 1 72MT</option><option>Unit 2 84MT</option><option>Unit 3 125MT</option></select><select id="po_status"><option>Draft</option><option>Sent</option><option>Received</option></select><button class="btn btn-g" onclick="createPO()">Create PO</button></div></div><div class="form-box"><h3>New GRN</h3><div class="row"><input id="g_vehicle" placeholder="Vehicle No"><input id="g_material" placeholder="Material"><select id="g_unit"><option>Unit 1 72MT</option><option>Unit 2 84MT</option><option>Unit 3 125MT</option></select></div><div class="row"><input id="g_gross" type="number" placeholder="Gross kg"><input id="g_tare" type="number" placeholder="Tare kg"><select id="g_vendor"></select><button class="btn btn-y" onclick="createGRN()">Save GRN</button></div></div><div class="card"><h3>PO List</h3><div id="poList">No PO</div></div><div class="card"><h3>GRN List</h3><div id="grnList">No GRN</div></div></div></div>
+<div id="sell" class="tabcontent hidden"><div class="card"><h3>Sell - DB Unchanged</h3><div class="form-box"><div class="row"><select id="d_customer"></select><input id="d_vehicle" placeholder="Vehicle No"><select id="d_product"></select><input id="d_qty" type="number" placeholder="Qty MT"></div><div class="row"><input id="d_qr" placeholder="QR Bags"><select id="d_unit"><option>Unit 1 72MT</option><option>Unit 2 84MT</option><option>Unit 3 125MT</option></select><button class="btn btn-g" onclick="createDispatch()">Create Dispatch</button></div></div><div class="card"><h3>Dispatch List</h3><div id="dispatchList">No Dispatch</div></div></div></div>
+<div id="vendors" class="tabcontent hidden"><div class="card"><h3>Vendors - DB Unchanged</h3><div class="form-box"><input type="hidden" id="vend_id"><div class="row"><input id="vend_name" placeholder="Name"><select id="vend_type"><option>Limestone</option><option>Petcoke</option><option>Packaging</option><option>Transport</option><option>Trading</option></select><input id="vend_gst" placeholder="GST No"></div><div class="row"><input id="vend_contact" placeholder="Contact"><input id="vend_credit" type="number" placeholder="Credit Limit"><input id="vend_due" type="number" placeholder="Pending Due"><button class="btn btn-g" onclick="saveVendor()">Save Vendor</button><button class="btn btn-w" onclick="resetVendForm()">Reset</button></div></div><div id="vendorTbl">No vendors</div></div></div>
+<div id="customers" class="tabcontent hidden"><div class="card"><h3>Customers - DB Unchanged</h3><div class="form-box"><input type="hidden" id="cust_id"><div class="row"><input id="cust_name" placeholder="Name"><select id="cust_type"><option>Cement</option><option>Steel</option><option>Chemical</option><option>Trader</option></select><input id="cust_gst" placeholder="GST No"></div><div class="row"><input id="cust_contact" placeholder="Contact"><input id="cust_recv" type="number" placeholder="Pending Receivable"><button class="btn btn-g" onclick="saveCustomer()">Save Customer</button><button class="btn btn-w" onclick="resetCustForm()">Reset</button></div></div><div id="customerTbl">No customers</div></div></div>
+<div id="pack" class="tabcontent hidden"><div class="card"><h3>Pack - DB Unchanged</h3><div class="form-box"><input type="hidden" id="pack_id"><div class="row"><input id="pack_type" placeholder="Bag Type"><select id="pack_cat"><option>40kg</option><option>Jumbo</option></select><input id="pack_cap" type="number" placeholder="Capacity MT"></div><div class="row"><input id="pack_closing" type="number" placeholder="Closing"><input id="pack_min" type="number" placeholder="Min"><input id="pack_rate" type="number" placeholder="Rate"><select id="pack_unit"><option>Unit 1 72MT</option><option>Unit 2 84MT</option><option>Unit 3 125MT</option></select></div><div class="row"><button class="btn btn-g" onclick="savePack()">Save Pack</button><button class="btn btn-w" onclick="resetPackForm()">Reset</button></div></div><div id="packTbl">No packs</div></div></div>
+<div id="qr" class="tabcontent hidden"><div class="card"><h3>QR - DB Unchanged</h3><div class="form-box"><div class="row"><select id="qr_product"></select><input id="qr_weight" type="number" value="1.2"><select id="qr_unit"><option>Unit 1 72MT</option><option>Unit 2 84MT</option><option>Unit 3 125MT</option></select><button class="btn btn-y" onclick="genQR()">Generate QR</button></div><div style="text-align:center;background:var(--alab);padding:10px;border-radius:8px;margin-top:8px"><div id="qrResult"></div><div id="qrImg"></div></div></div><div class="card"><h3>QR List</h3><div id="qrList">No QR</div></div></div></div>
+<div id="cost" class="tabcontent hidden"><div class="card"><h3>Cost - DB Unchanged</h3><div id="costVal">Rs 0 Lakh</div><div id="costTbl">No data</div></div></div>
+<div id="mobile" class="tabcontent hidden"><div class="card"><h3>Mobile - DB Unchanged</h3></div></div>
+</div>
+</div>
+
 <div id="productModal" class="modal hidden" onclick="if(event.target===this) closeProductPopup()">
 <div class="modal-content" style="max-width:620px">
-<div class="modal-header"><h3><i class="bi bi-bag-plus"></i> Add Product - v4.4.3</h3><button class="close-x" onclick="closeProductPopup()">x</button></div>
+<div class="modal-header"><h3><i class="bi bi-bag-plus"></i> Add Product - DB Unchanged</h3><button class="close-x" onclick="closeProductPopup()">x</button></div>
 <div class="modal-body">
 <input type="hidden" id="prod_id">
 <div class="form-box" style="background:#FFFBEB;border:2px solid var(--brass)">
-<h3>Product Details - Mandatory *</h3>
 <div class="row"><div style="flex:1"><label style="font-size:11px;font-weight:700">Product Name *</label><input id="prod_name" placeholder="Product Name"></div></div>
 <div class="row"><div style="flex:1"><label style="font-size:11px;font-weight:700">Product Category *</label><select id="prod_cat"><option value="">Select Category</option></select></div></div>
 <div class="row"><div style="flex:1"><label style="font-size:11px;font-weight:700">HSN Code *</label><input id="prod_hsn" placeholder="HSN Code"></div><div style="flex:1"><label style="font-size:11px;font-weight:700">Product Code (Auto)</label><input id="prod_code_preview" placeholder="Auto generate" disabled style="background:var(--alab);font-weight:800"></div></div>
 <div class="row"><div style="flex:1"><label style="font-size:11px;font-weight:700">Product Description *</label><textarea id="prod_desc" placeholder="Description"></textarea></div></div>
 </div>
 </div>
-<div class="modal-footer"><button class="btn btn-g" style="flex:1;padding:13px" onclick="saveProduct()"><i class="bi bi-check-lg"></i> Save Product</button><button class="btn btn-w" style="padding:13px" onclick="closeProductPopup()">Cancel</button></div>
+<div class="modal-footer"><button class="btn btn-g" style="flex:1;padding:13px" onclick="saveProduct()">Save Product</button><button class="btn btn-w" style="padding:13px" onclick="closeProductPopup()">Cancel</button></div>
 </div>
 </div>
 
-<!-- SBU POPUP - FIXED 1. Kiln lining/health under kiln name once + X + Delete buttons -->
 <div id="sbuModal" class="modal hidden" onclick="if(event.target===this) closeAddSBU()">
 <div class="modal-content">
-<div class="modal-header"><h3 id="sbuModalTitle"><i class="bi bi-building-add"></i> Add SBU - Strategic Business Units</h3><button class="close-x" onclick="closeAddSBU()">x</button></div>
+<div class="modal-header"><h3 id="sbuModalTitle"><i class="bi bi-building-add"></i> Add SBU</h3><button class="close-x" onclick="closeAddSBU()">x</button></div>
 <div class="modal-body">
 <input type="hidden" id="sbu_id">
-<div class="form-box" style="background:#FFFBEB;border:2px solid var(--brass)"><h3><i class="bi bi-info-circle"></i> SBU Details</h3>
-<div class="row"><div style="flex:1"><label style="font-size:11px;font-weight:700">SBU Name - e.g. Unit 1 72MT, Jodhpur Plant *</label><input id="sbu_name" placeholder="SBU Name"></div></div>
-<div class="row"><div style="flex:1"><label style="font-size:11px;font-weight:700">Address - Full address field</label><textarea id="sbu_address" placeholder="Full address field"></textarea></div></div>
+<div class="form-box" style="background:#FFFBEB;border:2px solid var(--brass)"><h3>SBU Details</h3>
+<div class="row"><div style="flex:1"><label style="font-size:11px;font-weight:700">SBU Name *</label><input id="sbu_name" placeholder="SBU Name e.g. Unit 1 72MT"></div></div>
+<div class="row"><div style="flex:1"><label style="font-size:11px;font-weight:700">Address</label><textarea id="sbu_address" placeholder="Full address"></textarea></div></div>
 </div>
 
-<div class="asset-section"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h4 style="margin:0">🔥 Kilns - 1. Fix: Lining & Health under Kiln Name asked once</h4><button class="btn btn-g" onclick="addKilnField()"><i class="bi bi-plus"></i> Add Kiln</button></div>
-<div id="kilnsContainer"><p style="font-size:11px;color:#888;text-align:center;padding:12px">No kilns</p></div>
-</div>
+<div class="asset-section"><div style="display:flex;justify-content:space-between;align-items:center"><h4 style="margin:0">🔥 Kilns - Lining & Health asked once per kiln</h4><button class="btn btn-g" onclick="addKilnField()"><i class="bi bi-plus"></i> Add Kiln</button></div><div id="kilnsContainer"><p style="font-size:11px;color:#888;text-align:center;padding:12px">No kilns</p></div></div>
 
-<div class="asset-section"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h4 style="margin:0">⚙️ Sizing Plants</h4><button class="btn btn-g" onclick="addSizingField()"><i class="bi bi-plus"></i> Add Sizing Plant</button></div>
-<div id="sizingContainer"><p style="font-size:11px;color:#888;text-align:center;padding:12px">No sizing plants</p></div>
-</div>
+<div class="asset-section"><div style="display:flex;justify-content:space-between;align-items:center"><h4 style="margin:0">⚙️ Sizing Plants</h4><button class="btn btn-g" onclick="addSizingField()"><i class="bi bi-plus"></i> Add Sizing Plant</button></div><div id="sizingContainer"><p style="font-size:11px;color:#888;text-align:center;padding:12px">No sizing</p></div></div>
 
-<div class="asset-section"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h4 style="margin:0">💧 Hydration Plants</h4><button class="btn btn-g" onclick="addHydrationField()"><i class="bi bi-plus"></i> Add Hydration Plant</button></div>
-<div id="hydrationContainer"><p style="font-size:11px;color:#888;text-align:center;padding:8px">No hydration plants</p></div>
-</div>
+<div class="asset-section"><div style="display:flex;justify-content:space-between;align-items:center"><h4 style="margin:0">💧 Hydration Plants</h4><button class="btn btn-g" onclick="addHydrationField()"><i class="bi bi-plus"></i> Add Hydration Plant</button></div><div id="hydrationContainer"><p style="font-size:11px;color:#888;text-align:center;padding:8px">No hydration</p></div></div>
 
-<div class="asset-section"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h4 style="margin:0">📦 Stock Yards - All category products + Opening stock</h4><button class="btn btn-y" onclick="addYardField()"><i class="bi bi-plus"></i> Add Stock Yard</button></div>
-<div id="yardsContainer"><p style="font-size:11px;color:#888;text-align:center;padding:8px">No stock yards</p></div>
-</div>
+<div class="asset-section"><div style="display:flex;justify-content:space-between;align-items:center"><h4 style="margin:0">📦 Stock Yards - All category + Opening stock</h4><button class="btn btn-y" onclick="addYardField()"><i class="bi bi-plus"></i> Add Stock Yard</button></div><div id="yardsContainer"><p style="font-size:11px;color:#888;text-align:center;padding:8px">No stock yards</p></div></div>
 
 </div>
-<div class="modal-footer"><button class="btn btn-g" style="flex:1;padding:14px;font-size:13px" onclick="saveSBU()"><i class="bi bi-check-lg"></i> Save SBU</button><button class="btn btn-w" style="padding:14px" onclick="closeAddSBU()">Cancel</button></div>
+<div class="modal-footer"><button class="btn btn-g" style="flex:1;padding:14px" onclick="saveSBU()">Save SBU</button><button class="btn btn-w" style="padding:14px" onclick="closeAddSBU()">Cancel</button></div>
 </div>
 </div>
 
@@ -371,108 +351,38 @@ function openTab(id){
  if(id==='cost') loadCost();
  if(id==='product_categories') loadCategories();
 }
-
 let kilnCounter=0, sizingCounter=0, hydCounter=0, yardCounter=0;
+let editingSBUId=null;
 
-// CATEGORIES - v4.4.3 UNCHANGED
 async function loadCategories(){
  let res=await fetch('/api/product_categories'); let cats=await res.json();
  document.getElementById('catCountDash') && (document.getElementById('catCountDash').innerText=cats.length);
- if(cats.length===0){
-   document.getElementById('categoryList').innerHTML='<div style="text-align:center;padding:20px"><p>No categories</p></div>';
- } else {
-   let h='<table><tr><th>#</th><th>Category Name</th><th>Created At</th><th>DB File</th><th>Actions</th></tr>';
-   cats.forEach((c,i)=>{ h+=`<tr><td>${i+1}</td><td><b>${c.category_name}</b></td><td style="font-size:10px">${c.created_at}</td><td style="font-size:10px">lemon_erp_v44_1_category.db<br>ID:${c.id}</td><td><button class="btn btn-w" onclick="editCategory(${c.id})">Edit</button> <button class="btn btn-r" onclick="delCategory(${c.id})">Del</button></td></tr>`; });
-   h+='</table>'; document.getElementById('categoryList').innerHTML=h;
- }
- let opts='<option value="">Select Category</option>' + cats.map(c=>`<option value="${c.category_name}">${c.category_name}</option>`).join('');
- let prodCat=document.getElementById('prod_cat');
- if(prodCat) prodCat.innerHTML=opts;
+ if(cats.length===0){ document.getElementById('categoryList').innerHTML='<div style="text-align:center;padding:20px"><p>No categories - DB unchanged</p></div>'; }
+ else { let h='<table><tr><th>#</th><th>Category Name</th><th>Created At</th><th>Actions</th></tr>'; cats.forEach((c,i)=>{ h+=`<tr><td>${i+1}</td><td><b>${c.category_name}</b></td><td style="font-size:10px">${c.created_at}</td><td><button class="btn btn-w" onclick="editCategory(${c.id})">Edit</button> <button class="btn btn-r" onclick="delCategory(${c.id})">Del</button></td></tr>`; }); h+='</table>'; document.getElementById('categoryList').innerHTML=h; }
+ let opts='<option value="">Select Category</option>' + cats.map(c=>`<option value="${c.category_name}">${c.category_name}</option>`).join(''); let pc=document.getElementById('prod_cat'); if(pc) pc.innerHTML=opts;
 }
-async function saveCategory(){
- let name=document.getElementById('cat_name').value.trim();
- if(!name){alert('Enter Category Name'); return;}
- let id=document.getElementById('cat_id').value;
- let payload={category_name:name};
- let url=id?'/api/product_categories/'+id:'/api/product_categories';
- let method=id?'PUT':'POST';
- let res=await fetch(url,{method:method,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
- if(res.status===400){ let err=await res.json(); alert(err.error); return; }
- alert(id?'✅ Category Updated':'✅ Category Created'); resetCatForm(); loadCategories();
-}
+async function saveCategory(){ let name=document.getElementById('cat_name').value.trim(); if(!name){alert('Enter Category Name'); return;} let id=document.getElementById('cat_id').value; let payload={category_name:name}; let url=id?'/api/product_categories/'+id:'/api/product_categories'; let method=id?'PUT':'POST'; let res=await fetch(url,{method:method,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); if(res.status===400){ let err=await res.json(); alert(err.error); return; } alert(id?'✅ Category Updated':'✅ Category Created'); resetCatForm(); loadCategories(); }
 async function editCategory(id){ let res=await fetch('/api/product_categories/'+id); let c=await res.json(); document.getElementById('cat_id').value=c.id; document.getElementById('cat_name').value=c.category_name; }
 function resetCatForm(){ document.getElementById('cat_id').value=''; document.getElementById('cat_name').value=''; }
 async function delCategory(id){ if(!confirm('Delete Category?')) return; await fetch('/api/product_categories/'+id,{method:'DELETE'}); loadCategories(); }
 
-// PRODUCTS - v4.4.3
-function openAddProductPopup(){
- document.getElementById('productModal').classList.remove('hidden');
- document.getElementById('prod_id').value='';
- document.getElementById('prod_name').value='';
- document.getElementById('prod_hsn').value='';
- document.getElementById('prod_desc').value='';
- document.getElementById('prod_code_preview').value='Auto generate Product code when product is saved';
- loadCategories();
- document.body.style.overflow='hidden';
-}
+function openAddProductPopup(){ document.getElementById('productModal').classList.remove('hidden'); document.getElementById('prod_id').value=''; document.getElementById('prod_name').value=''; document.getElementById('prod_hsn').value=''; document.getElementById('prod_desc').value=''; document.getElementById('prod_code_preview').value='Auto generate'; loadCategories(); document.body.style.overflow='hidden'; }
 function closeProductPopup(){ document.getElementById('productModal').classList.add('hidden'); document.body.style.overflow=''; }
 async function loadProducts(){
  let res=await fetch('/api/products'); let products=await res.json();
  document.getElementById('prodCountDash') && (document.getElementById('prodCountDash').innerText=products.length);
  let container=document.getElementById('productListContainer');
- if(products.length===0){
-   container.innerHTML='<div class="card" style="text-align:center;padding:30px"><p>No products</p><button class="btn btn-y" onclick="openAddProductPopup()"><i class="bi bi-plus-lg"></i> Add First Product</button></div>';
-   return;
- }
- let grouped={};
- products.forEach(p=>{ let cat=p.category||'Uncategorized'; if(!grouped[cat]) grouped[cat]=[]; grouped[cat].push(p); });
- let html='';
- for(let cat in grouped){
-   html+=`<div style="border:1.5px solid var(--line);border-radius:10px;margin:12px 0;overflow:hidden"><div style="background:var(--green);color:var(--brass);padding:10px 14px;font-weight:800;font-size:12px"><i class="bi bi-tags"></i> ${cat} - ${grouped[cat].length} Products</div><div style="padding:8px"><table><tr><th>Product Code</th><th>HSN</th><th>Product Name - Hover for Narration</th><th>Description</th><th>Actions</th></tr>`;
-   grouped[cat].forEach(p=>{
-     html+=`<tr><td><b style="background:var(--alab);padding:3px 8px;border-radius:6px;border:1px solid var(--line)">${p.product_code||'-'}</b></td><td><span class="badge ok">${p.hsn_code||'-'}</span></td><td><span class="tooltip"><b>${p.name}</b><span class="tooltiptext"><b>${p.name}</b><br>Code: ${p.product_code}<br>HSN: ${p.hsn_code}<br>Category: ${p.category}<br><br>Narration:<br>${p.description||''}</span></span></td><td style="font-size:10px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.description||'-'}</td><td><button class="btn btn-w" onclick="editProduct(${p.id})">Edit</button> <button class="btn btn-r" onclick="delProduct(${p.id})">Del</button></td></tr>`;
-   });
-   html+='</table></div></div>';
- }
- container.innerHTML=html;
+ if(products.length===0){ container.innerHTML='<div class="card" style="text-align:center;padding:30px"><p>No products - DB unchanged</p><button class="btn btn-y" onclick="openAddProductPopup()">Add First Product</button></div>'; return; }
+ let grouped={}; products.forEach(p=>{ let cat=p.category||'Uncategorized'; if(!grouped[cat]) grouped[cat]=[]; grouped[cat].push(p); });
+ let html=''; for(let cat in grouped){ html+=`<div style="border:1.5px solid var(--line);border-radius:10px;margin:12px 0;overflow:hidden"><div style="background:var(--green);color:var(--brass);padding:10px 14px;font-weight:800;font-size:12px">${cat} - ${grouped[cat].length} Products</div><div style="padding:8px"><table><tr><th>Code</th><th>HSN</th><th>Name - Hover for narration</th><th>Desc</th><th>Actions</th></tr>`; grouped[cat].forEach(p=>{ html+=`<tr><td><b style="background:var(--alab);padding:3px 8px;border-radius:6px;border:1px solid var(--line)">${p.product_code||'-'}</b></td><td><span class="badge ok">${p.hsn_code||'-'}</span></td><td><span class="tooltip"><b>${p.name}</b><span class="tooltiptext"><b>${p.name}</b><br>Code: ${p.product_code}<br>HSN: ${p.hsn_code}<br>Category: ${p.category}<br><br>${p.description||''}</span></span></td><td style="font-size:10px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.description||'-'}</td><td><button class="btn btn-w" onclick="editProduct(${p.id})">Edit</button> <button class="btn btn-r" onclick="delProduct(${p.id})">Del</button></td></tr>`; }); html+='</table></div></div>'; } container.innerHTML=html;
 }
-async function saveProduct(){
- let name=document.getElementById('prod_name').value.trim();
- let category=document.getElementById('prod_cat').value;
- let hsn=document.getElementById('prod_hsn').value.trim();
- let desc=document.getElementById('prod_desc').value.trim();
- if(!name){alert('Product Name Mandatory'); return;}
- if(!category){alert('Product Category Mandatory'); return;}
- if(!hsn){alert('HSN Code Mandatory'); return;}
- if(!desc){alert('Product Description Mandatory'); return;}
- let id=document.getElementById('prod_id').value;
- let payload={name:name, category:category, hsn_code:hsn, description:desc};
- let url=id?'/api/products/'+id:'/api/products';
- let method=id?'PUT':'POST';
- let res=await fetch(url,{method:method,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
- if(!res.ok){ let err=await res.json(); alert(err.error); return; }
- let d=await res.json();
- alert((id?'✅ Updated: ':'✅ Created: ')+d.name+' - Code: '+d.product_code);
- closeProductPopup(); loadProducts(); loadStock(); loadDash();
-}
-async function editProduct(id){
- let res=await fetch('/api/products/'+id); let p=await res.json();
- openAddProductPopup();
- document.getElementById('prod_id').value=p.id;
- document.getElementById('prod_name').value=p.name;
- setTimeout(()=>{ document.getElementById('prod_cat').value=p.category; },300);
- document.getElementById('prod_hsn').value=p.hsn_code;
- document.getElementById('prod_desc').value=p.description;
- document.getElementById('prod_code_preview').value=p.product_code;
-}
+async function saveProduct(){ let name=document.getElementById('prod_name').value.trim(); let category=document.getElementById('prod_cat').value; let hsn=document.getElementById('prod_hsn').value.trim(); let desc=document.getElementById('prod_desc').value.trim(); if(!name){alert('Product Name Mandatory'); return;} if(!category){alert('Category Mandatory'); return;} if(!hsn){alert('HSN Mandatory'); return;} if(!desc){alert('Description Mandatory'); return;} let id=document.getElementById('prod_id').value; let payload={name:name, category:category, hsn_code:hsn, description:desc}; let url=id?'/api/products/'+id:'/api/products'; let method=id?'PUT':'POST'; let res=await fetch(url,{method:method,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); if(!res.ok){ let err=await res.json(); alert(err.error); return; } let d=await res.json(); alert((id?'✅ Updated: ':'✅ Created: ')+d.name+' - Code: '+d.product_code); closeProductPopup(); loadProducts(); loadStock(); loadDash(); }
+async function editProduct(id){ let res=await fetch('/api/products/'+id); let p=await res.json(); openAddProductPopup(); document.getElementById('prod_id').value=p.id; document.getElementById('prod_name').value=p.name; setTimeout(()=>{ document.getElementById('prod_cat').value=p.category; },300); document.getElementById('prod_hsn').value=p.hsn_code; document.getElementById('prod_desc').value=p.description; document.getElementById('prod_code_preview').value=p.product_code; }
 async function delProduct(id){ if(!confirm('Delete Product?')) return; await fetch('/api/products/'+id,{method:'DELETE'}); loadProducts(); }
 
-// SBUs - v4.4.7 FIXED - KILN LINING/HEALTH UNDER KILN NAME ONCE + EDIT BUG FIX + DUPLICATE + TABULAR
-let editingSBUId = null; // FIX 2: track editing id properly
-
+// SBUs - Only 4 changes - DB unchanged - Based on v4.4.6
 function openAddSBU(){
- // FIX: Reset for new SBU
- editingSBUId = null;
+ editingSBUId=null;
  document.getElementById('sbu_id').value='';
  document.getElementById('sbuModalTitle').innerHTML='<i class="bi bi-building-add"></i> Add SBU - Strategic Business Units';
  document.getElementById('sbuModal').classList.remove('hidden');
@@ -487,17 +397,15 @@ function openAddSBU(){
  document.body.style.overflow='hidden';
 }
 function closeAddSBU(){ document.getElementById('sbuModal').classList.add('hidden'); document.body.style.overflow=''; editingSBUId=null; }
-
 async function loadAllProductsForSBU(){
  let res=await fetch('/api/products'); let ps=await res.json();
  window.allProducts=ps;
  window.finishedProducts=ps.filter(p=> (p.category||'').toLowerCase().includes('finish') || (p.category||'').toLowerCase().includes('quicklime') || (p.category||'').toLowerCase().includes('cao'));
  if(window.finishedProducts.length===0) window.finishedProducts=ps;
 }
-
 function getFinishedProductOptions(selectedId=null){
  let opts=(window.finishedProducts||[]).map(p=>`<option value="${p.id}" ${selectedId==p.id?'selected':''}>${p.name} (${p.product_code||''}) - ${p.category}</option>`).join('');
- if(opts==='') return '<option>No finished products - Create in Products</option>';
+ if(opts==='') return '<option>No finished products</option>';
  return '<option value="">Select Product from Finished Product List</option>'+opts;
 }
 function getAllProductOptions(selectedId=null){
@@ -505,37 +413,29 @@ function getAllProductOptions(selectedId=null){
  if(opts==='') return '<option>No products</option>';
  return '<option value="">Dropdown selection field (all category)</option>'+opts;
 }
-
-// 1. FIX: Kiln lining and health status under kiln name asked once - not per product
+// 1. Fix: Kiln lining and health under kiln name once
 function addKilnField(data=null){
  let container=document.getElementById('kilnsContainer');
  if(container.innerHTML.includes('No kilns')) container.innerHTML='';
  kilnCounter++;
  let id='kiln_'+kilnCounter+'_'+Date.now();
- // data.products_capacity is array of {product_id, capacity_per_day}
- // data now has kiln_no, lining_installation_date, health_status, products_capacity
  let html=`<div id="${id}" class="kiln-line">
-<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><b>🔥 Kiln Line - *Kiln No. *Lining Date *Health Status (asked once per kiln) *Products and Capacity</b><div><button class="btn btn-b" onclick="addKilnProduct('${id}')"><i class="bi bi-plus"></i> Add Product</button> <button class="btn btn-r" onclick="document.getElementById('${id}').remove()"><i class="bi bi-trash"></i> Delete Kiln</button></div></div>
-<!-- 1. Lining and Health under Kiln Name - asked once per kiln -->
-<div class="row" style="margin-top:10px;background:white;padding:10px;border-radius:8px;border:1px solid var(--line)"><div style="flex:1"><label style="font-size:11px;font-weight:700">*Kiln No. - e.g. Kiln 1, K-01</label><input class="k_no" placeholder="Kiln No. e.g. Kiln 1, K-01" value="${data?data.kiln_no||'':''}"></div><div style="flex:1"><label style="font-size:11px;font-weight:700">Lining Installation Date - Date picker (for kiln - asked once)</label><input class="k_lining" type="date" value="${data?data.lining_installation_date||data.lining_date||''}"></div><div style="flex:1"><label style="font-size:11px;font-weight:700">Health Status - Good, Needs Repair, Critical, New (for kiln - asked once)</label><select class="k_health"><option ${data&&data.health_status==='Good'?'selected':''}>Good</option><option ${data&&data.health_status==='Needs Repair'?'selected':''}>Needs Repair</option><option ${data&&data.health_status==='Critical'?'selected':''}>Critical</option><option ${data&&data.health_status==='New'?'selected':''}>New</option></select></div></div>
-<div style="margin-top:10px;padding:10px;background:white;border-radius:8px;border:1px solid var(--line)"><b style="font-size:11px">*Products and Capacity - Add Product Button → Only Product name + Capacity/Day (Lining/Health NOT clubbed)</b><div class="kiln-products-container" style="margin-top:8px">${data && data.products_capacity ? data.products_capacity.map(pc=>renderKilnProductLine(pc)).join('') : '<p style="font-size:10px;color:#888">No products - Click Add Product → Only Product name (Finished List), Capacity/Day - Lining/Health separate above</p>'}</div></div>
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><b>🔥 Kiln - Kiln No + Lining Date + Health Status (once per kiln) + Products and Capacity + Delete</b><div><button class="btn btn-b" onclick="addKilnProduct('${id}')"><i class="bi bi-plus"></i> Add Product</button> <button class="btn btn-r" onclick="document.getElementById('${id}').remove()"><i class="bi bi-trash"></i> Delete Kiln</button></div></div>
+<div class="row" style="margin-top:10px;background:white;padding:10px;border-radius:8px;border:1px solid var(--line)"><div style="flex:1"><label style="font-size:11px;font-weight:700">*Kiln No. - e.g. Kiln 1, K-01</label><input class="k_no" placeholder="Kiln No." value="${data?data.kiln_no||'':''}"></div><div style="flex:1"><label style="font-size:11px;font-weight:700">Lining Installation Date - Date picker (for kiln - once)</label><input class="k_lining" type="date" value="${data?data.lining_installation_date||data.lining_date||''}"></div><div style="flex:1"><label style="font-size:11px;font-weight:700">Health Status - Good, Needs Repair, Critical, New (for kiln - once)</label><select class="k_health"><option ${data&&data.health_status==='Good'?'selected':''}>Good</option><option ${data&&data.health_status==='Needs Repair'?'selected':''}>Needs Repair</option><option ${data&&data.health_status==='Critical'?'selected':''}>Critical</option><option ${data&&data.health_status==='New'?'selected':''}>New</option></select></div></div>
+<div style="margin-top:10px;padding:10px;background:white;border-radius:8px;border:1px solid var(--line)"><b style="font-size:11px">*Products and Capacity - Add Product → Only Product name + Capacity/Day</b><div class="kiln-products-container" style="margin-top:8px">${data && data.products_capacity ? data.products_capacity.map(pc=>renderKilnProductLine(pc)).join('') : '<p style="font-size:10px;color:#888">No products - Click Add Product → Only Product name, Capacity/Day</p>'}</div></div>
 </div>`;
  container.insertAdjacentHTML('beforeend', html);
 }
-
 function renderKilnProductLine(pc){
  let id='kprod_'+Date.now()+'_'+Math.random().toString(36).substr(2,5);
- // 1. FIX: Only Product name + Capacity/Day - dont club lining and health
- return `<div id="${id}" class="product-line"><div class="row" style="align-items:end"><div style="flex:2"><label style="font-size:10px;font-weight:700">Product name (selected from Finished Product List)</label><select class="kp_product">${getFinishedProductOptions(pc.product_id)}</select></div><div style="flex:1"><label style="font-size:10px;font-weight:700">Capacity/Day - MT/day e.g. 15</label><input class="kp_capacity" type="number" placeholder="Capacity/Day" value="${pc.capacity_per_day||pc.capacity||''}"></div><div style="flex:0"><button class="btn btn-r" style="margin-top:18px" onclick="document.getElementById('${id}').remove()"><i class="bi bi-trash"></i> Delete</button></div></div></div>`;
+ return `<div id="${id}" class="product-line"><div class="row" style="align-items:end"><div style="flex:2"><label style="font-size:10px;font-weight:700">Product name (Finished Product List)</label><select class="kp_product">${getFinishedProductOptions(pc.product_id)}</select></div><div style="flex:1"><label style="font-size:10px;font-weight:700">Capacity/Day MT/day</label><input class="kp_capacity" type="number" placeholder="Capacity/Day" value="${pc.capacity_per_day||pc.capacity||''}"></div><div style="flex:0"><button class="btn btn-r" style="margin-top:18px" onclick="document.getElementById('${id}').remove()"><i class="bi bi-trash"></i> Delete</button></div></div></div>`;
 }
-
 function addKilnProduct(kilnId){
  let kilnDiv=document.getElementById(kilnId);
  let container=kilnDiv.querySelector('.kiln-products-container');
  if(container.innerHTML.includes('No products')) container.innerHTML='';
  container.insertAdjacentHTML('beforeend', renderKilnProductLine({}));
 }
-
 function addSizingField(data=null){
  let container=document.getElementById('sizingContainer');
  if(container.innerHTML.includes('No sizing')) container.innerHTML='';
@@ -543,25 +443,22 @@ function addSizingField(data=null){
  let id='sizing_'+sizingCounter+'_'+Date.now();
  let html=`<div id="${id}" class="kiln-line" style="background:#F6FFF6;border-color:#C5E1C5">
 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><b>⚙️ Sizing Plant - Plant No.</b><div><button class="btn btn-b" onclick="addSizingProduct('${id}')"><i class="bi bi-plus"></i> Add Product</button> <button class="btn btn-r" onclick="document.getElementById('${id}').remove()"><i class="bi bi-trash"></i> Delete</button></div></div>
-<div class="row" style="margin-top:8px"><div style="flex:1"><label style="font-size:10px;font-weight:700">*Plant No. - e.g. Sizing 1, SP-01</label><input class="s_no" placeholder="Plant No." value="${data?data.plant_no||'':''}"></div></div>
-<div style="margin-top:8px;padding:10px;background:white;border-radius:8px;border:1px solid var(--line)"><div class="sizing-products-container">${data && data.products_capacity ? data.products_capacity.map(pc=>renderSizingProductLine(pc)).join('') : '<p style="font-size:10px;color:#888">No products - Add Product → Product name, Capacity/hour, List of Machineries</p>'}</div></div>
-<div class="row"><div style="flex:1"><label style="font-size:10px;font-weight:700">List of Machineries - Whole plant - e.g. Crusher, Vibrating Screen 10-40mm, Conveyor 20m, Dust Collector</label><textarea class="s_mach" placeholder="List of Machineries">${data?data.machineries||'':''}</textarea></div></div>
+<div class="row" style="margin-top:8px"><div style="flex:1"><label style="font-size:10px;font-weight:700">*Plant No.</label><input class="s_no" placeholder="Plant No." value="${data?data.plant_no||'':''}"></div></div>
+<div style="margin-top:8px;padding:10px;background:white;border-radius:8px;border:1px solid var(--line)"><div class="sizing-products-container">${data && data.products_capacity ? data.products_capacity.map(pc=>renderSizingProductLine(pc)).join('') : '<p style="font-size:10px;color:#888">No products</p>'}</div></div>
+<div class="row"><div style="flex:1"><label style="font-size:10px;font-weight:700">List of Machineries - Whole plant</label><textarea class="s_mach" placeholder="Machineries">${data?data.machineries||'':''}</textarea></div></div>
 </div>`;
  container.insertAdjacentHTML('beforeend', html);
 }
-
 function renderSizingProductLine(pc){
  let id='sprod_'+Date.now()+'_'+Math.random().toString(36).substr(2,5);
- return `<div id="${id}" class="product-line" style="border-left-color:#1A2E1E"><div class="row" style="align-items:end"><div style="flex:2"><label style="font-size:10px;font-weight:700">Product name (Finished Product List)</label><select class="sp_product">${getFinishedProductOptions(pc.product_id)}</select></div><div style="flex:1"><label style="font-size:10px;font-weight:700">Capacity/hour - MT/hour e.g. 5</label><input class="sp_capacity" type="number" placeholder="Capacity/hour" value="${pc.capacity_per_hour||pc.capacity||''}"></div><div style="flex:0"><button class="btn btn-r" onclick="document.getElementById('${id}').remove()"><i class="bi bi-trash"></i> Delete</button></div></div><div class="row"><div style="flex:1"><label style="font-size:10px;font-weight:700">List of Machineries - for this product line</label><textarea class="sp_mach_line" placeholder="Machineries for this product">${pc.machineries||''}</textarea></div></div></div>`;
+ return `<div id="${id}" class="product-line" style="border-left-color:#1A2E1E"><div class="row" style="align-items:end"><div style="flex:2"><label style="font-size:10px;font-weight:700">Product name (Finished List)</label><select class="sp_product">${getFinishedProductOptions(pc.product_id)}</select></div><div style="flex:1"><label style="font-size:10px;font-weight:700">Capacity/hour</label><input class="sp_capacity" type="number" placeholder="Capacity/hour" value="${pc.capacity_per_hour||pc.capacity||''}"></div><div style="flex:0"><button class="btn btn-r" onclick="document.getElementById('${id}').remove()"><i class="bi bi-trash"></i> Delete</button></div></div><div class="row"><div style="flex:1"><label style="font-size:10px;font-weight:700">List of Machineries - product line</label><textarea class="sp_mach_line" placeholder="Machineries">${pc.machineries||''}</textarea></div></div></div>`;
 }
-
 function addSizingProduct(sizingId){
  let div=document.getElementById(sizingId);
  let container=div.querySelector('.sizing-products-container');
  if(container.innerHTML.includes('No products')) container.innerHTML='';
  container.insertAdjacentHTML('beforeend', renderSizingProductLine({}));
 }
-
 function addHydrationField(data=null){
  let container=document.getElementById('hydrationContainer');
  if(container.innerHTML.includes('No hydration')) container.innerHTML='';
@@ -569,25 +466,22 @@ function addHydrationField(data=null){
  let id='hyd_'+hydCounter+'_'+Date.now();
  let html=`<div id="${id}" class="kiln-line" style="background:#F0F8FF;border-color:#C2D6FF">
 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><b>💧 Hydration Plant - Plant No.</b><div><button class="btn btn-b" onclick="addHydrationProduct('${id}')"><i class="bi bi-plus"></i> Add Product</button> <button class="btn btn-r" onclick="document.getElementById('${id}').remove()"><i class="bi bi-trash"></i> Delete</button></div></div>
-<div class="row" style="margin-top:8px"><div style="flex:1"><label style="font-size:10px;font-weight:700">*Plant No. - e.g. Hydration 1, HP-01</label><input class="h_no" placeholder="Plant No." value="${data?data.plant_no||'':''}"></div></div>
+<div class="row" style="margin-top:8px"><div style="flex:1"><label style="font-size:10px;font-weight:700">*Plant No.</label><input class="h_no" placeholder="Plant No." value="${data?data.plant_no||'':''}"></div></div>
 <div style="margin-top:8px;padding:10px;background:white;border-radius:8px;border:1px solid var(--line)"><div class="hydration-products-container">${data && data.products_capacity ? data.products_capacity.map(pc=>renderHydrationProductLine(pc)).join('') : '<p style="font-size:10px;color:#888">No products</p>'}</div></div>
-<div class="row"><div style="flex:1"><label style="font-size:10px;font-weight:700">List of machineries - Whole plant → Hydrator Reactor 5MT, Water Pump, Bagging Machine</label><textarea class="h_mach" placeholder="Machineries">${data?data.machineries||'':''}</textarea></div></div>
+<div class="row"><div style="flex:1"><label style="font-size:10px;font-weight:700">List of machineries - Whole plant</label><textarea class="h_mach" placeholder="Machineries">${data?data.machineries||'':''}</textarea></div></div>
 </div>`;
  container.insertAdjacentHTML('beforeend', html);
 }
-
 function renderHydrationProductLine(pc){
  let id='hprod_'+Date.now()+'_'+Math.random().toString(36).substr(2,5);
- return `<div id="${id}" class="product-line" style="border-left-color:#0A3D91"><div class="row" style="align-items:end"><div style="flex:2"><label style="font-size:10px;font-weight:700">Product name (Finished Product List)</label><select class="hp_product">${getFinishedProductOptions(pc.product_id)}</select></div><div style="flex:1"><label style="font-size:10px;font-weight:700">Capacity/hour</label><input class="hp_capacity" type="number" placeholder="Capacity/hour" value="${pc.capacity_per_hour||pc.capacity||''}"></div><div style="flex:0"><button class="btn btn-r" onclick="document.getElementById('${id}').remove()"><i class="bi bi-trash"></i> Delete</button></div></div><div class="row"><div style="flex:1"><label style="font-size:10px;font-weight:700">List of machineries for this product line</label><textarea class="hp_mach_line" placeholder="Machineries">${pc.machineries||''}</textarea></div></div></div>`;
+ return `<div id="${id}" class="product-line" style="border-left-color:#0A3D91"><div class="row" style="align-items:end"><div style="flex:2"><label style="font-size:10px;font-weight:700">Product name (Finished List)</label><select class="hp_product">${getFinishedProductOptions(pc.product_id)}</select></div><div style="flex:1"><label style="font-size:10px;font-weight:700">Capacity/hour</label><input class="hp_capacity" type="number" placeholder="Capacity/hour" value="${pc.capacity_per_hour||pc.capacity||''}"></div><div style="flex:0"><button class="btn btn-r" onclick="document.getElementById('${id}').remove()"><i class="bi bi-trash"></i> Delete</button></div></div><div class="row"><div style="flex:1"><label style="font-size:10px;font-weight:700">List of machineries</label><textarea class="hp_mach_line" placeholder="Machineries">${pc.machineries||''}</textarea></div></div></div>`;
 }
-
 function addHydrationProduct(hydId){
  let div=document.getElementById(hydId);
  let container=div.querySelector('.hydration-products-container');
  if(container.innerHTML.includes('No products')) container.innerHTML='';
  container.insertAdjacentHTML('beforeend', renderHydrationProductLine({}));
 }
-
 function addYardField(data=null){
  let container=document.getElementById('yardsContainer');
  if(container.innerHTML.includes('No stock yards')) container.innerHTML='';
@@ -595,17 +489,15 @@ function addYardField(data=null){
  let id='yard_'+yardCounter+'_'+Date.now();
  let html=`<div id="${id}" class="kiln-line" style="background:#FFFBEB">
 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><b>📦 Stock Yard - Yard Name + Yard Items</b><div><button class="btn btn-b" onclick="addYardItem('${id}')"><i class="bi bi-plus"></i> Add Yard Items</button> <button class="btn btn-r" onclick="document.getElementById('${id}').remove()"><i class="bi bi-trash"></i> Delete Yard</button></div></div>
-<div class="row" style="margin-top:8px"><div style="flex:1"><label style="font-size:10px;font-weight:700">*Yard Name - e.g. Limestone Yard 1, Finished Godown A</label><input class="y_name" placeholder="Yard Name" value="${data?data.yard_name||'':''}"></div></div>
+<div class="row" style="margin-top:8px"><div style="flex:1"><label style="font-size:10px;font-weight:700">*Yard Name</label><input class="y_name" placeholder="Yard Name" value="${data?data.yard_name||'':''}"></div></div>
 <div style="margin-top:8px;padding:10px;background:white;border-radius:8px;border:1px solid var(--line)"><div class="yard-items-container" style="margin-top:8px">${data && data.yard_items ? data.yard_items.map(yi=>renderYardItemLine(yi)).join('') : '<p style="font-size:10px;color:#888">No yard items - Add Yard Items → Product from all category + Opening stock</p>'}</div></div>
 </div>`;
  container.insertAdjacentHTML('beforeend', html);
 }
-
 function renderYardItemLine(yi){
  let id='yitem_'+Date.now()+'_'+Math.random().toString(36).substr(2,5);
- return `<div id="${id}" class="product-line" style="border-left-color:var(--brass)"><div class="row" style="align-items:end"><div style="flex:2"><label style="font-size:10px;font-weight:700">Dropdown selection field (all category products)</label><select class="yi_product">${getAllProductOptions(yi.product_id)}</select></div><div style="flex:1"><label style="font-size:10px;font-weight:700">Opening stock MT</label><input class="yi_opening" type="number" placeholder="Opening stock e.g. 150 MT" value="${yi.opening_stock||yi.opening||''}"></div><div style="flex:0"><button class="btn btn-r" onclick="document.getElementById('${id}').remove()"><i class="bi bi-trash"></i> Delete</button></div></div></div>`;
+ return `<div id="${id}" class="product-line" style="border-left-color:var(--brass)"><div class="row" style="align-items:end"><div style="flex:2"><label style="font-size:10px;font-weight:700">Dropdown (all category products)</label><select class="yi_product">${getAllProductOptions(yi.product_id)}</select></div><div style="flex:1"><label style="font-size:10px;font-weight:700">Opening stock MT</label><input class="yi_opening" type="number" placeholder="Opening stock" value="${yi.opening_stock||yi.opening||''}"></div><div style="flex:0"><button class="btn btn-r" onclick="document.getElementById('${id}').remove()"><i class="bi bi-trash"></i> Delete</button></div></div></div>`;
 }
-
 function addYardItem(yardId){
  let div=document.getElementById(yardId);
  let container=div.querySelector('.yard-items-container');
@@ -616,7 +508,6 @@ function addYardItem(yardId){
 async function saveSBU(){
  let sbuName=document.getElementById('sbu_name').value.trim();
  if(!sbuName){alert('Enter SBU Name'); return;}
- // 1. FIX: Kiln lining and health under kiln - once per kiln
  let kilns=[]; document.querySelectorAll('#kilnsContainer > div[id^="kiln_"]').forEach(div=>{
    let products_capacity=[];
    div.querySelectorAll('.kiln-products-container > div[id^="kprod_"]').forEach(pdiv=>{
@@ -624,13 +515,7 @@ async function saveSBU(){
      let cap=pdiv.querySelector('.kp_capacity').value;
      if(pid) products_capacity.push({product_id:parseInt(pid), capacity_per_day:parseFloat(cap||0), capacity:parseFloat(cap||0)});
    });
-   kilns.push({
-     kiln_no:div.querySelector('.k_no').value, 
-     lining_installation_date:div.querySelector('.k_lining').value,
-     lining_date:div.querySelector('.k_lining').value,
-     health_status:div.querySelector('.k_health').value,
-     products_capacity:products_capacity
-   });
+   kilns.push({kiln_no:div.querySelector('.k_no').value, lining_installation_date:div.querySelector('.k_lining').value, lining_date:div.querySelector('.k_lining').value, health_status:div.querySelector('.k_health').value, products_capacity:products_capacity});
  });
  let sizings=[]; document.querySelectorAll('#sizingContainer > div[id^="sizing_"]').forEach(div=>{
    let products_capacity=[];
@@ -662,60 +547,51 @@ async function saveSBU(){
    yards.push({yard_name:div.querySelector('.y_name').value, yard_items:yard_items});
  });
  let payload={sbu_name:sbuName, address:document.getElementById('sbu_address').value, kilns:kilns, sizing_plants:sizings, hydration_plants:hydrations, stock_yards:yards};
- // 2. FIX: Use editingSBUId properly - not erasing name/address
  let sbuId = editingSBUId || document.getElementById('sbu_id').value;
  let url=sbuId?'/api/sbus/'+sbuId:'/api/sbus';
  let method=sbuId?'PUT':'POST';
  let res=await fetch(url,{method:method,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
  let d=await res.json();
- alert(sbuId?'✅ SBU Updated: '+d.sbu_name+' - Edit bug fixed':'✅ SBU Created: '+d.sbu_name);
+ alert(sbuId?'✅ SBU Updated: '+d.sbu_name:'✅ SBU Created: '+d.sbu_name);
  closeAddSBU(); loadSBUs(); loadDash();
 }
 
-// 4. Arrange data in tabular format - clean tables
+// 4. Tabular format clean
 async function loadSBUs(){
  let res=await fetch('/api/sbus'); let sbus=await res.json();
  document.getElementById('sbuCountDash') && (document.getElementById('sbuCountDash').innerText=sbus.length);
  if(sbus.length===0){
-   document.getElementById('sbuList').innerHTML='<div style="text-align:center;padding:30px"><p>No SBUs - Strategic Business Units - Tabular Format Clean</p><button class="btn btn-y" onclick="openAddSBU()"><i class="bi bi-plus-lg"></i> Add First SBU</button></div>';
+   document.getElementById('sbuList').innerHTML='<div style="text-align:center;padding:30px"><p>No SBUs - Tabular Clean</p><button class="btn btn-y" onclick="openAddSBU()">Add First SBU</button></div>';
    return;
  }
  let h='';
  for(let s of sbus){
    let kilnBadge=(s.kilns||[]).length, sizingBadge=(s.sizing_plants||[]).length, hydBadge=(s.hydration_plants||[]).length, yardBadge=(s.stock_yards||[]).length;
-   // SBU Card with tabular format
-   h+=`<div class="card sbu-card" style="padding:0;overflow:hidden">
-<div class="sbu-header"><div><h3 style="margin:0;font-size:16px"><i class="bi bi-building"></i> ${s.sbu_name}</h3><p style="margin:4px 0 0;font-size:11px;color:#666"><i class="bi bi-geo-alt"></i> ${s.address||'No address - Full address field'}</p><p style="margin:6px 0 0"><span class="badge brass">${kilnBadge} Kilns</span> <span class="badge brass">${sizingBadge} Sizing</span> <span class="badge brass">${hydBadge} Hydration</span> <span class="badge brass">${yardBadge} Yards</span></p></div><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-w" onclick="editSBU(${s.id})"><i class="bi bi-pencil"></i> Edit</button><button class="btn btn-o" onclick="duplicateSBU(${s.id})"><i class="bi bi-files"></i> Duplicate</button><button class="btn btn-r" onclick="delSBU(${s.id})"><i class="bi bi-trash"></i> Delete</button></div></div>
+   h+=`<div class="card sbu-card">
+<div class="sbu-header"><div><h3 style="margin:0;font-size:16px"><i class="bi bi-building"></i> ${s.sbu_name}</h3><p style="margin:4px 0 0;font-size:11px;color:#666"><i class="bi bi-geo-alt"></i> ${s.address||'No address'}</p><p style="margin:6px 0 0"><span class="badge brass">${kilnBadge} Kilns</span> <span class="badge brass">${sizingBadge} Sizing</span> <span class="badge brass">${hydBadge} Hydration</span> <span class="badge brass">${yardBadge} Yards</span></p></div><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-w" onclick="editSBU(${s.id})"><i class="bi bi-pencil"></i> Edit</button><button class="btn btn-o" onclick="duplicateSBU(${s.id})"><i class="bi bi-files"></i> Duplicate</button><button class="btn btn-r" onclick="delSBU(${s.id})"><i class="bi bi-trash"></i> Delete</button></div></div>
 <div style="padding:12px">
-<!-- Kilns Table - Clean Tabular -->
-${(s.kilns||[]).length>0?`<div class="tabular-section"><div class="tabular-header"><span>🔥 Kilns - Tabular Format Clean - Kiln No, Lining Date, Health Status, Products, Capacity/Day</span></div><table class="sbu-table"><tr><th>Kiln No.</th><th>Lining Installation Date</th><th>Health Status</th><th>Products (Finished List) + Capacity/Day</th></tr>${(s.kilns||[]).map(k=>`<tr><td><b>${k.kiln_no||'Kiln'}</b></td><td>${k.lining_installation_date||k.lining_date||'-'}</td><td><span class="badge ${k.health_status==='Good'?'ok':(k.health_status==='Critical'?'crit':'warn')}">${k.health_status||'Good'}</span></td><td>${(k.products_capacity||[]).map(pc=>`<span style="display:inline-block;background:var(--alab);padding:3px 8px;border-radius:12px;margin:2px;border:1px solid var(--line);font-size:10px"><b>${pc.product_name||pc.product_id}</b> - ${pc.capacity_per_day||pc.capacity||0} MT/day</span>`).join('')||'- No products - Add Product Button → Product name, Capacity/Day only'}</td></tr>`).join('')+`</table></div>`:''}
-<!-- Sizing Table -->
-${(s.sizing_plants||[]).length>0?`<div class="tabular-section"><div class="tabular-header"><span>⚙️ Sizing Plants - Plant No, Products, Cap/hr, Machineries</span></div><table class="sbu-table"><tr><th>Plant No.</th><th>Products (Finished List) + Capacity/hour</th><th>List of Machineries</th></tr>${(s.sizing_plants||[]).map(sp=>`<tr><td><b>${sp.plant_no||'Sizing Plant'}</b></td><td>${(sp.products_capacity||[]).map(pc=>`<span style="display:inline-block;background:#F6FFF6;padding:3px 8px;border-radius:12px;margin:2px;border:1px solid #C5E1C5;font-size:10px">${pc.product_name||pc.product_id} - ${pc.capacity_per_hour||pc.capacity||0} MT/hr</span>`).join('')||'-'}</td><td style="font-size:10px;max-width:280px">${(sp.products_capacity||[]).map(pc=>pc.machineries?`<div>${pc.product_name}: ${pc.machineries}</div>`:'' ).join('')||''}<div style="margin-top:4px;border-top:1px dashed var(--line);padding-top:4px"><b>Whole plant:</b> ${sp.machineries||'-'} - e.g. Crusher, Vibrating Screen 10-40mm, Conveyor 20m, Dust Collector</div></td></tr>`).join('')+`</table></div>`:''}
-<!-- Hydration Table -->
-${(s.hydration_plants||[]).length>0?`<div class="tabular-section"><div class="tabular-header"><span>💧 Hydration Plants - Plant No, Products, Cap/hour, Machineries</span></div><table class="sbu-table"><tr><th>Plant No.</th><th>Products + Cap/hour</th><th>Machineries</th></tr>${(s.hydration_plants||[]).map(hp=>`<tr><td><b>${hp.plant_no||'Hydration'}</b></td><td>${(hp.products_capacity||[]).map(pc=>`${pc.product_name||pc.product_id} - ${pc.capacity_per_hour||pc.capacity||0} MT/hr`).join('<br>')||'-'}</td><td style="font-size:10px">${hp.machineries||'-'}<br><span style="color:#666">Hydrator Reactor 5MT, Water Pump, Bagging Machine</span></td></tr>`).join('')+`</table></div>`:''}
-<!-- Stock Yards Table -->
-${(s.stock_yards||[]).length>0?`<div class="tabular-section"><div class="tabular-header"><span>📦 Stock Yards - Yard Name + Yard Items (All category products + Opening stock)</span></div><table class="sbu-table"><tr><th>Yard Name</th><th>Yard Items - Product (All category) + Opening Stock</th></tr>${(s.stock_yards||[]).map(y=>`<tr><td><b>${y.yard_name}</b></td><td>${(y.yard_items||[]).map(yi=>`<span style="display:inline-block;background:#FFFBEB;padding:3px 8px;border-radius:12px;margin:2px;border:1px solid var(--brass);font-size:10px">${yi.product_name||yi.product_id} - Opening: ${yi.opening_stock||yi.opening||0} MT</span>`).join('')||'No items'}</td></tr>`).join('')+`</table></div>`:''}
+${(s.kilns||[]).length>0?`<div class="tabular-section"><div class="tabular-header">🔥 Kilns - Tabular - Kiln No, Lining Date, Health Status, Products + Capacity/Day</div><table class="sbu-table"><tr><th>Kiln No.</th><th>Lining Installation Date</th><th>Health Status</th><th>Products (Finished List) + Capacity/Day</th></tr>${(s.kilns||[]).map(k=>`<tr><td><b>${k.kiln_no||'Kiln'}</b></td><td>${k.lining_installation_date||k.lining_date||'-'}</td><td><span class="badge ${k.health_status==='Good'?'ok':(k.health_status==='Critical'?'crit':'warn')}">${k.health_status||'Good'}</span></td><td>${(k.products_capacity||[]).map(pc=>`<span style="display:inline-block;background:var(--alab);padding:3px 8px;border-radius:12px;margin:2px;border:1px solid var(--line);font-size:10px"><b>${pc.product_name||pc.product_id}</b> - ${pc.capacity_per_day||pc.capacity||0} MT/day</span>`).join('')||'-'}</td></tr>`).join('')+`</table></div>`:''}
+${(s.sizing_plants||[]).length>0?`<div class="tabular-section"><div class="tabular-header">⚙️ Sizing Plants - Plant No, Products, Cap/hr, Machineries</div><table class="sbu-table"><tr><th>Plant No.</th><th>Products + Capacity/hour</th><th>Machineries</th></tr>${(s.sizing_plants||[]).map(sp=>`<tr><td><b>${sp.plant_no||'Sizing'}</b></td><td>${(sp.products_capacity||[]).map(pc=>`<span style="display:inline-block;background:#F6FFF6;padding:3px 8px;border-radius:12px;margin:2px;border:1px solid #C5E1C5;font-size:10px">${pc.product_name||pc.product_id} - ${pc.capacity_per_hour||pc.capacity||0} MT/hr</span>`).join('')||'-'}</td><td style="font-size:10px;max-width:280px"><b>Whole plant:</b> ${sp.machineries||'-'}</td></tr>`).join('')+`</table></div>`:''}
+${(s.hydration_plants||[]).length>0?`<div class="tabular-section"><div class="tabular-header">💧 Hydration Plants</div><table class="sbu-table"><tr><th>Plant No.</th><th>Products + Cap/hr</th><th>Machineries</th></tr>${(s.hydration_plants||[]).map(hp=>`<tr><td><b>${hp.plant_no||'Hydration'}</b></td><td>${(hp.products_capacity||[]).map(pc=>`${pc.product_name||pc.product_id} - ${pc.capacity_per_hour||pc.capacity||0} MT/hr`).join('<br>')||'-'}</td><td style="font-size:10px">${hp.machineries||'-'}</td></tr>`).join('')+`</table></div>`:''}
+${(s.stock_yards||[]).length>0?`<div class="tabular-section"><div class="tabular-header">📦 Stock Yards - Yard Name + Yard Items (All category + Opening stock)</div><table class="sbu-table"><tr><th>Yard Name</th><th>Yard Items - Product + Opening Stock</th></tr>${(s.stock_yards||[]).map(y=>`<tr><td><b>${y.yard_name}</b></td><td>${(y.yard_items||[]).map(yi=>`<span style="display:inline-block;background:#FFFBEB;padding:3px 8px;border-radius:12px;margin:2px;border:1px solid var(--brass);font-size:10px">${yi.product_name||yi.product_id} - Opening: ${yi.opening_stock||yi.opening||0} MT</span>`).join('')||'No items'}</td></tr>`).join('')+`</table></div>`:''}
 </div>
 </div>`;
  }
  document.getElementById('sbuList').innerHTML=h;
 }
 
-// 2. FIX EDIT BUG + DUPLICATE OPTION
 async function editSBU(id){
  let res=await fetch('/api/sbus/'+id); let s=await res.json();
- // FIX: Store editing id BEFORE opening modal (which clears id field)
- editingSBUId = s.id;
- document.getElementById('sbu_id').value = s.id;
- document.getElementById('sbuModalTitle').innerHTML='<i class="bi bi-pencil-square"></i> Edit SBU - '+s.sbu_name+' - Bug Fixed - Name/Address not erased';
+ editingSBUId=s.id;
+ document.getElementById('sbu_id').value=s.id;
+ document.getElementById('sbuModalTitle').innerHTML='<i class="bi bi-pencil-square"></i> Edit SBU - '+s.sbu_name+' - Bug Fixed';
  document.getElementById('sbuModal').classList.remove('hidden');
- // FIX: Set name and address immediately - not erased
- document.getElementById('sbu_name').value = s.sbu_name;
- document.getElementById('sbu_address').value = s.address;
- document.getElementById('kilnsContainer').innerHTML='<p style="font-size:11px;color:#888">Loading kilns...</p>';
- document.getElementById('sizingContainer').innerHTML='<p style="font-size:11px;color:#888">Loading sizing...</p>';
- document.getElementById('hydrationContainer').innerHTML='<p style="font-size:11px;color:#888">Loading hydration...</p>';
- document.getElementById('yardsContainer').innerHTML='<p style="font-size:11px;color:#888">Loading yards...</p>';
+ document.getElementById('sbu_name').value=s.sbu_name;
+ document.getElementById('sbu_address').value=s.address;
+ document.getElementById('kilnsContainer').innerHTML='<p style="font-size:11px;color:#888">Loading...</p>';
+ document.getElementById('sizingContainer').innerHTML='<p style="font-size:11px;color:#888">Loading...</p>';
+ document.getElementById('hydrationContainer').innerHTML='<p style="font-size:11px;color:#888">Loading...</p>';
+ document.getElementById('yardsContainer').innerHTML='<p style="font-size:11px;color:#888">Loading...</p>';
  await loadAllProductsForSBU();
  document.body.style.overflow='hidden';
  setTimeout(()=>{
@@ -733,11 +609,9 @@ async function editSBU(id){
    (s.stock_yards||[]).forEach(y=>{ addYardField(y); });
  },400);
 }
-
 async function duplicateSBU(id){
- if(!confirm('Duplicate SBU? Create duplicate so you need not fill each details again and again - Will create copy of SBU with same Kilns, Sizing, Hydration, Yards')) return;
+ if(!confirm('Duplicate SBU? Create duplicate so you need not fill each details again and again')) return;
  let res=await fetch('/api/sbus/'+id); let s=await res.json();
- // Create duplicate with "Copy" suffix
  let payload={
    sbu_name: s.sbu_name + ' - Copy',
    address: s.address,
@@ -748,13 +622,12 @@ async function duplicateSBU(id){
  };
  let res2=await fetch('/api/sbus',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
  let d=await res2.json();
- alert('✅ SBU Duplicated: '+d.sbu_name+' - Duplicate created so you need not fill each details again and again');
+ alert('✅ SBU Duplicated: '+d.sbu_name+' - No need to fill again');
  loadSBUs();
 }
-
 async function delSBU(id){ if(!confirm('Delete SBU?')) return; await fetch('/api/sbus/'+id,{method:'DELETE'}); loadSBUs(); }
 
-// UNCHANGED v4.4.6 + v4.4.3
+// Other modules - DB unchanged - v4.4.6 same
 async function loadStock(){
  let res=await fetch('/api/inventory/combined'); let data=await res.json();
  let fUnit=document.getElementById('fUnit').value;
@@ -776,24 +649,24 @@ async function loadDash(){
  let sbuRes=await fetch('/api/sbus'); let sbus=await sbuRes.json(); document.getElementById('sbuCountDash') && (document.getElementById('sbuCountDash').innerText=sbus.length);
 }
 async function loadWCOptions(){ let res=await fetch('/api/sbus'); let sbus=await res.json(); let opts=sbus.map(s=>`<option value="${s.id}">${s.sbu_name}</option>`).join(''); let el=document.getElementById('make_wc'); if(el) el.innerHTML=opts; }
-async function loadVendors(){ let res=await fetch('/api/vendors'); let vs=await res.json(); if(vs.length===0){ document.getElementById('vendorTbl').innerHTML='No vendors'; return; } let h='<table><tr><th>Name</th><th>Type</th><th>Actions</th></tr>'; vs.forEach(v=>{ h+=`<tr><td><b>${v.name}</b></td><td>${v.vendor_type}</td><td><button class="btn btn-w" onclick="editVendor(${v.id})">Edit</button> <button class="btn btn-r" onclick="delVendor(${v.id})">Del</button></td></tr>`; }); h+='</table>'; document.getElementById('vendorTbl').innerHTML=h; let opts=vs.map(v=>`<option value="${v.id}">${v.name}</option>`).join(''); ['po_vendor','g_vendor'].forEach(id=>{ let el=document.getElementById(id); if(el) el.innerHTML=opts; }); }
+async function loadVendors(){ let res=await fetch('/api/vendors'); let vs=await res.json(); if(vs.length===0){ document.getElementById('vendorTbl').innerHTML='No vendors - DB unchanged'; return; } let h='<table><tr><th>Name</th><th>Type</th><th>Actions</th></tr>'; vs.forEach(v=>{ h+=`<tr><td><b>${v.name}</b></td><td>${v.vendor_type}</td><td><button class="btn btn-w" onclick="editVendor(${v.id})">Edit</button> <button class="btn btn-r" onclick="delVendor(${v.id})">Del</button></td></tr>`; }); h+='</table>'; document.getElementById('vendorTbl').innerHTML=h; let opts=vs.map(v=>`<option value="${v.id}">${v.name}</option>`).join(''); ['po_vendor','g_vendor'].forEach(id=>{ let el=document.getElementById(id); if(el) el.innerHTML=opts; }); }
 async function saveVendor(){ let id=document.getElementById('vend_id').value; let payload={name:document.getElementById('vend_name').value, vendor_type:document.getElementById('vend_type').value, gst:document.getElementById('vend_gst').value, contact:document.getElementById('vend_contact').value, credit_limit:parseFloat(document.getElementById('vend_credit').value||0), pending_due:parseFloat(document.getElementById('vend_due').value||0)}; if(!payload.name){alert('Enter Vendor Name'); return;} let url=id?'/api/vendors/'+id:'/api/vendors'; let method=id?'PUT':'POST'; await fetch(url,{method:method,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); alert(id?'✅ Vendor Updated':'✅ Vendor Created'); resetVendForm(); loadVendors(); }
 async function editVendor(id){ let res=await fetch('/api/vendors/'+id); let v=await res.json(); document.getElementById('vend_id').value=v.id; document.getElementById('vend_name').value=v.name; document.getElementById('vend_type').value=v.vendor_type; document.getElementById('vend_gst').value=v.gst; document.getElementById('vend_contact').value=v.contact; document.getElementById('vend_credit').value=v.credit_limit; document.getElementById('vend_due').value=v.pending_due; }
 function resetVendForm(){ document.getElementById('vend_id').value=''; ['vend_name','vend_gst','vend_contact','vend_credit','vend_due'].forEach(id=>document.getElementById(id).value=''); }
 async function delVendor(id){ if(!confirm('Delete Vendor?')) return; await fetch('/api/vendors/'+id,{method:'DELETE'}); loadVendors(); }
 async function loadVendorsOpt(){ let res=await fetch('/api/vendors'); let vs=await res.json(); let opts=vs.map(v=>`<option value="${v.id}">${v.name}</option>`).join(''); ['po_vendor','g_vendor'].forEach(id=>{ let el=document.getElementById(id); if(el) el.innerHTML=opts; }); }
-async function loadCustomers(){ let res=await fetch('/api/customers'); let cs=await res.json(); if(cs.length===0){ document.getElementById('customerTbl').innerHTML='No customers'; return; } let h='<table><tr><th>Name</th><th>Type</th><th>Actions</th></tr>'; cs.forEach(c=>{ h+=`<tr><td><b>${c.name}</b></td><td>${c.customer_type}</td><td><button class="btn btn-w" onclick="editCustomer(${c.id})">Edit</button> <button class="btn btn-r" onclick="delCustomer(${c.id})">Del</button></td></tr>`; }); h+='</table>'; document.getElementById('customerTbl').innerHTML=h; let opts=cs.map(c=>`<option value="${c.id}">${c.name}</option>`).join(''); let el=document.getElementById('d_customer'); if(el) el.innerHTML=opts; }
+async function loadCustomers(){ let res=await fetch('/api/customers'); let cs=await res.json(); if(cs.length===0){ document.getElementById('customerTbl').innerHTML='No customers - DB unchanged'; return; } let h='<table><tr><th>Name</th><th>Type</th><th>Actions</th></tr>'; cs.forEach(c=>{ h+=`<tr><td><b>${c.name}</b></td><td>${c.customer_type}</td><td><button class="btn btn-w" onclick="editCustomer(${c.id})">Edit</button> <button class="btn btn-r" onclick="delCustomer(${c.id})">Del</button></td></tr>`; }); h+='</table>'; document.getElementById('customerTbl').innerHTML=h; let opts=cs.map(c=>`<option value="${c.id}">${c.name}</option>`).join(''); let el=document.getElementById('d_customer'); if(el) el.innerHTML=opts; }
 async function saveCustomer(){ let id=document.getElementById('cust_id').value; let payload={name:document.getElementById('cust_name').value, customer_type:document.getElementById('cust_type').value, gst:document.getElementById('cust_gst').value, contact:document.getElementById('cust_contact').value, pending_receivable:parseFloat(document.getElementById('cust_recv').value||0)}; if(!payload.name){alert('Enter Customer Name'); return;} let url=id?'/api/customers/'+id:'/api/customers'; let method=id?'PUT':'POST'; await fetch(url,{method:method,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); alert(id?'✅ Customer Updated':'✅ Customer Created'); resetCustForm(); loadCustomers(); }
 async function editCustomer(id){ let res=await fetch('/api/customers/'+id); let c=await res.json(); document.getElementById('cust_id').value=c.id; document.getElementById('cust_name').value=c.name; document.getElementById('cust_type').value=c.customer_type; document.getElementById('cust_gst').value=c.gst; document.getElementById('cust_contact').value=c.contact; document.getElementById('cust_recv').value=c.pending_receivable; }
 function resetCustForm(){ document.getElementById('cust_id').value=''; ['cust_name','cust_gst','cust_contact','cust_recv'].forEach(id=>document.getElementById(id).value=''); }
 async function delCustomer(id){ if(!confirm('Delete Customer?')) return; await fetch('/api/customers/'+id,{method:'DELETE'}); loadCustomers(); }
 async function loadCustomersOpt(){ let res=await fetch('/api/customers'); let cs=await res.json(); let opts=cs.map(c=>`<option value="${c.id}">${c.name}</option>`).join(''); let el=document.getElementById('d_customer'); if(el) el.innerHTML=opts; }
-async function loadPack(){ let res=await fetch('/api/packaging'); let ps=await res.json(); if(ps.length===0){ document.getElementById('packTbl').innerHTML='No packs'; return; } let h='<table><tr><th>Bag Type</th><th>Cat</th><th>Actions</th></tr>'; ps.forEach(p=>{ h+=`<tr><td><b>${p.bag_type}</b></td><td>${p.bag_category}</td><td><button class="btn btn-w" onclick="editPack(${p.id})">Edit</button> <button class="btn btn-r" onclick="delPack(${p.id})">Del</button></td></tr>`; }); h+='</table>'; document.getElementById('packTbl').innerHTML=h; }
+async function loadPack(){ let res=await fetch('/api/packaging'); let ps=await res.json(); if(ps.length===0){ document.getElementById('packTbl').innerHTML='No packs - DB unchanged'; return; } let h='<table><tr><th>Bag Type</th><th>Cat</th><th>Actions</th></tr>'; ps.forEach(p=>{ h+=`<tr><td><b>${p.bag_type}</b></td><td>${p.bag_category}</td><td><button class="btn btn-w" onclick="editPack(${p.id})">Edit</button> <button class="btn btn-r" onclick="delPack(${p.id})">Del</button></td></tr>`; }); h+='</table>'; document.getElementById('packTbl').innerHTML=h; }
 async function savePack(){ let id=document.getElementById('pack_id').value; let payload={bag_type:document.getElementById('pack_type').value, bag_category:document.getElementById('pack_cat').value, capacity_mt:parseFloat(document.getElementById('pack_cap').value||0), closing:parseFloat(document.getElementById('pack_closing').value||0), min_stock:parseFloat(document.getElementById('pack_min').value||0), rate_per_bag:parseFloat(document.getElementById('pack_rate').value||0), unit:document.getElementById('pack_unit').value}; if(!payload.bag_type){alert('Enter Bag Type'); return;} let url=id?'/api/packaging/'+id:'/api/packaging'; let method=id?'PUT':'POST'; await fetch(url,{method:method,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); alert(id?'✅ Pack Updated':'✅ Pack Created'); resetPackForm(); loadPack(); }
 async function editPack(id){ let res=await fetch('/api/packaging/'+id); let p=await res.json(); document.getElementById('pack_id').value=p.id; document.getElementById('pack_type').value=p.bag_type; document.getElementById('pack_cat').value=p.bag_category; document.getElementById('pack_cap').value=p.capacity_mt; document.getElementById('pack_closing').value=p.closing; document.getElementById('pack_min').value=p.min_stock; document.getElementById('pack_rate').value=p.rate_per_bag; document.getElementById('pack_unit').value=p.unit; }
 function resetPackForm(){ document.getElementById('pack_id').value=''; ['pack_type','pack_cap','pack_closing','pack_min','pack_rate'].forEach(id=>document.getElementById(id).value=''); }
 async function delPack(id){ if(!confirm('Delete Pack?')) return; await fetch('/api/packaging/'+id,{method:'DELETE'}); loadPack(); }
-async function loadMO(){ let res=await fetch('/api/manufacturing_orders'); let mos=await res.json(); if(mos.length===0){ document.getElementById('moList').innerHTML='No MO'; return; } let h='<table><tr><th>MO No</th><th>Type</th><th>WC/SBU</th><th>Status</th></tr>'; mos.forEach(m=>{ h+=`<tr><td><b>${m.mo_no}</b></td><td>${m.mo_type}</td><td>${m.workcenter}</td><td>${m.status}</td></tr>`; }); h+='</table>'; document.getElementById('moList').innerHTML=h; }
+async function loadMO(){ let res=await fetch('/api/manufacturing_orders'); let mos=await res.json(); if(mos.length===0){ document.getElementById('moList').innerHTML='No MO - DB unchanged'; return; } let h='<table><tr><th>MO No</th><th>Type</th><th>WC/SBU</th><th>Status</th></tr>'; mos.forEach(m=>{ h+=`<tr><td><b>${m.mo_no}</b></td><td>${m.mo_type}</td><td>${m.workcenter}</td><td>${m.status}</td></tr>`; }); h+='</table>'; document.getElementById('moList').innerHTML=h; }
 async function createMO(){ let wc=document.getElementById('make_wc').value; if(!wc){alert('Create SBUs first'); return;} let payload={workcenter_id:wc, unit:document.getElementById('make_unit').value, mo_type:document.getElementById('make_type').value, input_qty_mt:parseFloat(document.getElementById('make_lime').value||0), output_qty_mt:parseFloat(document.getElementById('make_out').value||0), wastage_mt:parseFloat(document.getElementById('make_waste').value||0), input_product:document.getElementById('make_inProd').value, output_product:document.getElementById('make_outProd').value, operator:document.getElementById('make_op').value||'operator1'}; let res=await fetch('/api/manufacturing_orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); let d=await res.json(); alert('✅ MO '+d.mo_no); loadMO(); }
 async function createPO(){ let qty=parseFloat(document.getElementById('po_qty').value||0); let rate=parseFloat(document.getElementById('po_rate').value||0); if(qty<=0||rate<=0){alert('Qty & Rate'); return;} let payload={vendor_id:document.getElementById('po_vendor').value, material:document.getElementById('po_mat').value, qty:qty, rate:rate, unit:document.getElementById('po_unit').value, status:document.getElementById('po_status').value, date:new Date().toISOString().slice(0,10)}; let res=await fetch('/api/po',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); let d=await res.json(); alert('✅ PO '+d.po_no); loadPOList(); }
 async function loadPOList(){ let res=await fetch('/api/po'); let pos=await res.json(); document.getElementById('poList').innerHTML=pos.length?'<table><tr><th>PO No</th><th>Material</th><th>Qty</th><th>Total</th><th>Unit</th><th>Status</th></tr>'+pos.map(p=>`<tr><td>${p.po_no}</td><td>${p.material}</td><td>${p.qty}</td><td>${p.total}</td><td>${p.unit}</td><td>${p.status}</td></tr>`).join('')+'</table>':'No PO'; }
@@ -1221,7 +1094,7 @@ def qr_list():
 
 @app.route('/api/health')
 def health():
-    return jsonify({"status":"LIVE","version":"v4.4.7 Clean Tabular - Keep v4.4.6 unchanged only SBU changes - 1 Kiln lining/health asked once under kiln name not per product - Product add only Product name + Capacity/Day - 2 Edit bug fixed + Duplicate option - 3 Remove text lines after heading and button - 4 Tabular format clean","db_file":"lemon_erp_v44_1_category.db","url":"https://lemon-erp.onrender.com"})
+    return jsonify({"status":"LIVE","version":"v4.4.8 Pick v4.4.6 + Only 4 Changes - 1 Kiln lining/health once under kiln - 2 Edit bug fix + Duplicate - 3 Remove text lines - 4 Tabular format clean - DB unchanged lemon_erp_v44_1_category.db","db_file":"lemon_erp_v44_1_category.db - No other DB changes - Only SBUs module changed","url":"https://lemon-erp.onrender.com"})
 
 if __name__=='__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
