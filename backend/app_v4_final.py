@@ -773,104 +773,125 @@ def po_api():
                 'material':p.material,'qty':p.qty,'rate':p.rate
             })
         return jsonify(result)
-    data=request.get_json() or {}
-    sbu_id=data.get('sbu_id')
-    if not sbu_id: return jsonify(error='SBU mandatory'),400
-    sbu=SBU.query.get(sbu_id)
-    if not sbu: return jsonify(error='SBU not found'),400
-    vendor_id=data.get('vendor_id')
-    if not vendor_id: return jsonify(error='Vendor mandatory'),400
-    vendor=Vendor.query.get(vendor_id)
-    if not vendor: return jsonify(error='Vendor not found'),400
-    items=data.get('items') or []
-    if not items or len(items)==0: return jsonify(error='Add at least one line item'),400
-    po_date=data.get('po_date') or datetime.now().strftime('%Y-%m-%d')
-    fy=get_financial_year(po_date)
-    prod_name_for_code=data.get('product_name_filter') or (items[0].get('product_name') if items else 'PRODUCT')
-    prod_sanitized=sanitize_product_name_for_po(prod_name_for_code)
-    existing_count=PO.query.filter(PO.po_no.like(f"PO/{fy}/{prod_sanitized}/%")).count()+1
-    po_no=generate_po_no(fy, prod_name_for_code, existing_count)
-    while PO.query.filter_by(po_no=po_no).first():
-        existing_count+=1
+    try:
+        data=request.get_json() or {}
+        sbu_id=data.get('sbu_id')
+        if not sbu_id: return jsonify(error='SBU mandatory - Select SBU'),400
+        sbu=SBU.query.get(sbu_id)
+        if not sbu: return jsonify(error=f'SBU not found ID {sbu_id}'),400
+        vendor_id=data.get('vendor_id')
+        if not vendor_id: return jsonify(error='Vendor mandatory - Select Vendor'),400
+        vendor=Vendor.query.get(vendor_id)
+        if not vendor: return jsonify(error=f'Vendor not found ID {vendor_id}'),400
+        items=data.get('items') or []
+        if not items or len(items)==0: return jsonify(error='Add at least one line item - Click Add Line Item'),400
+        # Validate items have product, qty, rate
+        for idx, it in enumerate(items):
+            if not it.get('product_id') and not it.get('product_name'):
+                return jsonify(error=f'Line {idx+1}: Product mandatory - Select product'),400
+            try:
+                q=float(it.get('qty') or 0)
+                r=float(it.get('rate') or 0)
+            except:
+                return jsonify(error=f'Line {idx+1}: Qty/Rate must be numbers'),400
+            if q<=0 or r<=0:
+                return jsonify(error=f'Line {idx+1}: Qty>0 and Rate>0 required'),400
+        po_date=data.get('po_date') or datetime.now().strftime('%Y-%m-%d')
+        fy=get_financial_year(po_date)
+        prod_name_for_code=data.get('product_name_filter') or (items[0].get('product_name') if items else 'PRODUCT')
+        if not prod_name_for_code or not str(prod_name_for_code).strip():
+            prod_name_for_code='PRODUCT'
+        prod_sanitized=sanitize_product_name_for_po(prod_name_for_code)
+        existing_count=PO.query.filter(PO.po_no.like(f"PO/{fy}/{prod_sanitized}/%")).count()+1
         po_no=generate_po_no(fy, prod_name_for_code, existing_count)
-    taxable=0
-    cgst_total=0
-    sgst_total=0
-    igst_total=0
-    for it in items:
-        qty=float(it.get('qty') or 0)
-        rate=float(it.get('rate') or 0)
-        gst_percent=float(it.get('gst_percent') or 0)
-        amt=qty*rate
-        taxable+=amt
-        gst_type=it.get('gst_type','inter')
-        if gst_type=='intra':
-            cgst=amt*gst_percent/100/2
-            sgst=amt*gst_percent/100/2
-            igst=0
-        else:
-            cgst=0
-            sgst=0
-            igst=amt*gst_percent/100
-        cgst_total+=cgst
-        sgst_total+=sgst
-        igst_total+=igst
-        it['amount']=round(amt,2)
-        it['cgst_amount']=round(cgst,2)
-        it['sgst_amount']=round(sgst,2)
-        it['igst_amount']=round(igst,2)
-        it['tax_amount']=round(cgst+sgst+igst,2)
-        it['total_amount']=round(amt+cgst+sgst+igst,2)
-    freight=float(data.get('freight_amount') or 0)
-    round_off=float(data.get('round_off') or 0)
-    grand_total=taxable+cgst_total+sgst_total+igst_total+freight+round_off
-    po=PO(
-        po_no=po_no,
-        rfq_no=data.get('rfq_no',''),
-        po_date=po_date,
-        po_validity=data.get('po_validity',''),
-        po_type=data.get('po_type','Raw Material'),
-        sbu_id=sbu.id,
-        sbu_name=sbu.sbu_name,
-        delivery_address=data.get('delivery_address',''),
-        billing_address=data.get('billing_address',''),
-        same_as_delivery=bool(data.get('same_as_delivery',True)),
-        product_id=data.get('product_id'),
-        product_name_filter=prod_name_for_code,
-        vendor=vendor.name,
-        vendor_id=vendor.id,
-        vendor_code=vendor.vendor_code,
-        vendor_state=vendor.state or data.get('vendor_state',''),
-        items=json.dumps(items),
-        taxable_value=round(taxable,2),
-        cgst_amount=round(cgst_total,2),
-        sgst_amount=round(sgst_total,2),
-        igst_amount=round(igst_total,2),
-        freight_amount=round(freight,2),
-        round_off=round(round_off,2),
-        grand_total=round(grand_total,2),
-        material=items[0].get('product_name','') if items else '',
-        qty=sum([float(i.get('qty') or 0) for i in items]),
-        rate=items[0].get('rate',0) if items else 0,
-        unit=items[0].get('uom','MT') if items else 'MT',
-        delivery_type=data.get('delivery_type','One Time'),
-        delivery_schedule=data.get('delivery_schedule',''),
-        payment_terms_days=int(data.get('payment_terms_days') or 0),
-        rate_basis=data.get('rate_basis','FOR'),
-        freight_terms=data.get('freight_terms',''),
-        tds_applicable=data.get('tds_applicable','Not Applicable'),
-        tds_percent=float(data.get('tds_percent') or 0),
-        rcm_applicable=data.get('rcm_applicable','No'),
-        rcm_percent=float(data.get('rcm_percent') or 0),
-        documents=json.dumps(data.get('documents',{})),
-        status=data.get('status','Draft'),
-        approval_status=data.get('approval_status','Draft'),
-        created_by=data.get('created_by','Admin'),
-        updated_by=data.get('created_by','Admin')
-    )
-    db.session.add(po)
-    db.session.commit()
-    return jsonify(id=po.id, po_no=po.po_no, grand_total=po.grand_total)
+        while PO.query.filter_by(po_no=po_no).first():
+            existing_count+=1
+            po_no=generate_po_no(fy, prod_name_for_code, existing_count)
+        taxable=0
+        cgst_total=0
+        sgst_total=0
+        igst_total=0
+        for it in items:
+            qty=float(it.get('qty') or 0)
+            rate=float(it.get('rate') or 0)
+            gst_percent=float(it.get('gst_percent') or 0)
+            amt=qty*rate
+            taxable+=amt
+            gst_type=it.get('gst_type','inter')
+            if gst_type=='intra':
+                cgst=amt*gst_percent/100/2
+                sgst=amt*gst_percent/100/2
+                igst=0
+            else:
+                cgst=0
+                sgst=0
+                igst=amt*gst_percent/100
+            cgst_total+=cgst
+            sgst_total+=sgst
+            igst_total+=igst
+            it['amount']=round(amt,2)
+            it['cgst_amount']=round(cgst,2)
+            it['sgst_amount']=round(sgst,2)
+            it['igst_amount']=round(igst,2)
+            it['tax_amount']=round(cgst+sgst+igst,2)
+            it['total_amount']=round(amt+cgst+sgst+igst,2)
+        freight=float(data.get('freight_amount') or 0)
+        round_off=float(data.get('round_off') or 0)
+        grand_total=taxable+cgst_total+sgst_total+igst_total+freight+round_off
+        po=PO(
+            po_no=po_no,
+            rfq_no=data.get('rfq_no',''),
+            po_date=po_date,
+            po_validity=data.get('po_validity',''),
+            po_type=data.get('po_type','Raw Material'),
+            sbu_id=sbu.id,
+            sbu_name=sbu.sbu_name,
+            delivery_address=data.get('delivery_address',''),
+            billing_address=data.get('billing_address',''),
+            same_as_delivery=bool(data.get('same_as_delivery',True)),
+            product_id=data.get('product_id'),
+            product_name_filter=prod_name_for_code,
+            vendor=vendor.name,
+            vendor_id=vendor.id,
+            vendor_code=vendor.vendor_code or '',
+            vendor_state=vendor.state or data.get('vendor_state','') or '',
+            items=json.dumps(items),
+            taxable_value=round(taxable,2),
+            cgst_amount=round(cgst_total,2),
+            sgst_amount=round(sgst_total,2),
+            igst_amount=round(igst_total,2),
+            freight_amount=round(freight,2),
+            round_off=round(round_off,2),
+            grand_total=round(grand_total,2),
+            material=items[0].get('product_name','') if items else '',
+            qty=sum([float(i.get('qty') or 0) for i in items]),
+            rate=items[0].get('rate',0) if items else 0,
+            unit=items[0].get('uom','MT') if items else 'MT',
+            delivery_type=data.get('delivery_type','One Time'),
+            delivery_schedule=data.get('delivery_schedule',''),
+            payment_terms_days=int(data.get('payment_terms_days') or 0),
+            rate_basis=data.get('rate_basis','FOR'),
+            freight_terms=data.get('freight_terms',''),
+            tds_applicable=data.get('tds_applicable','Not Applicable'),
+            tds_percent=float(data.get('tds_percent') or 0),
+            rcm_applicable=data.get('rcm_applicable','No'),
+            rcm_percent=float(data.get('rcm_percent') or 0),
+            documents=json.dumps(data.get('documents',{})),
+            status=data.get('status','Draft'),
+            approval_status=data.get('approval_status','Draft'),
+            created_by=data.get('created_by','Admin'),
+            updated_by=data.get('created_by','Admin')
+        )
+        db.session.add(po)
+        db.session.commit()
+        print(f"✅ PO Created: {po.po_no} Grand {po.grand_total}")
+        return jsonify(id=po.id, po_no=po.po_no, grand_total=po.grand_total)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        db.session.rollback()
+        print(f"❌ PO POST Error: {e}")
+        return jsonify(error=f'Server error saving PO: {str(e)}'),500
 
 @app.route('/api/po/<int:pid>', methods=['GET','PUT','DELETE'])
 def po_one(pid):
@@ -2343,14 +2364,28 @@ async function savePO(){
     let url=poId?`/api/po/${poId}`:'/api/po';
     let method=poId?'PUT':'POST';
     let res=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    let j=await res.json();
+    let text=await res.text();
+    let j;
+    try{
+      j=JSON.parse(text);
+    }catch(parseErr){
+      console.error('PO Save - Server returned non-JSON (HTML error):', text.substring(0,1000));
+      console.error('Payload:', payload);
+      if(text.trim().startsWith('<!') || text.toLowerCase().includes('<!doctype')){
+        let clean=text.replace(/<[^>]*>/g,' ').trim().substring(0,600);
+        alert(`❌ Server Error 500 - Backend crashed\nStatus: ${res.status}\nError: ${clean}\nCheck Render logs https://dashboard.render.com\n\nThis usually means PO table migration missing or product_id null FK error`);
+      } else {
+        alert(`❌ Invalid JSON - Status ${res.status}\n${text.substring(0,500)}`);
+      }
+      return;
+    }
     console.log('PO Save response:', res.status, j);
     if(res.ok){
       alert(`✅ PO ${poId?'Updated':'Created'}: ${j.po_no} - Grand Total Rs ${j.grand_total}`);
       closeAddPOPopup();
       loadPOs();
     } else {
-      alert(`❌ Save failed: ${j.error||'Unknown'} (Status ${res.status}) - Check F12 console`);
+      alert(`❌ Save failed: ${j.error||'Unknown'} (Status ${res.status}) - ${j.error||''}`);
     }
   }catch(err){
     console.error('Save PO JS Error:', err);
