@@ -1074,6 +1074,270 @@ def po_duplicate(pid):
     return jsonify(id=new_po.id, po_no=new_po.po_no)
 
 
+# ========== BACKUP MODULE v4.5.1 - ONLY BACKUP MODULE ADDED - OTHER MODULES LOCKED ==========
+@app.route('/api/backup', methods=['GET'])
+def backup_api():
+    try:
+        # Collect all tables data
+        data={}
+        # Product Categories
+        data['product_category']=[{'id':c.id,'category_name':c.category_name,'created_at':c.created_at} for c in ProductCategory.query.all()]
+        # Products
+        data['product']=[{'id':p.id,'name':p.name,'category':p.category,'product_code':p.product_code,'hsn_code':p.hsn_code,'description':p.description,'loose_stock_mt':p.loose_stock_mt,'jumbo_mt':p.jumbo_mt,'hdpe_40kg_mt':p.hdpe_40kg_mt,'total_stock_mt':p.total_stock_mt,'min_stock':p.min_stock,'reorder_level':p.reorder_level,'sale_price':p.sale_price,'purchase_price':p.purchase_price,'location':p.location} for p in Product.query.all()]
+        # SBUs
+        data['sbu']=[{'id':s.id,'sbu_name':s.sbu_name,'address':s.address,'created_at':s.created_at} for s in SBU.query.all()]
+        # Kiln Assets
+        data['kiln_asset']=[{'id':k.id,'sbu_id':k.sbu_id,'kiln_no':k.kiln_no,'lining_installation_date':k.lining_installation_date,'health_status':k.health_status,'products_capacity':k.products_capacity} for k in KilnAsset.query.all()]
+        # Sizing Plant Assets
+        data['sizing_plant_asset']=[{'id':s.id,'sbu_id':s.sbu_id,'plant_no':s.plant_no,'products_capacity':s.products_capacity,'machineries':s.machineries} for s in SizingPlantAsset.query.all()]
+        # Hydration Plant Assets
+        data['hydration_plant_asset']=[{'id':h.id,'sbu_id':h.sbu_id,'plant_no':h.plant_no,'products_capacity':h.products_capacity,'machineries':h.machineries} for h in HydrationPlantAsset.query.all()]
+        # Stock Yard Assets
+        data['stock_yard_asset']=[{'id':y.id,'sbu_id':y.sbu_id,'yard_name':y.yard_name,'items':y.items} for y in StockYardAsset.query.all()]
+        # Vendors - handle both old and new schema
+        vendors=[]
+        for v in Vendor.query.all():
+            try:
+                vendors.append({
+                    'id':v.id,'vendor_code':getattr(v,'vendor_code',''),'name':v.name,'station':getattr(v,'station',''),'address':getattr(v,'address',''),'state':getattr(v,'state',''),
+                    'gst_no':getattr(v,'gst_no',''),'pan_no':getattr(v,'pan_no',''),'tan_no':getattr(v,'tan_no',''),
+                    'legal_status':getattr(v,'legal_status',''),'vendor_category':getattr(v,'vendor_category',''),
+                    'bank_details':getattr(v,'bank_details','[]'),'contacts':getattr(v,'contacts','[]'),
+                    'status':getattr(v,'status','Active'),
+                    'msme_cert_no':getattr(v,'msme_cert_no',''),'msme_expiry':getattr(v,'msme_expiry',''),'msme_upload':getattr(v,'msme_upload',''),
+                    'gst_reg_type':getattr(v,'gst_reg_type','Regular'),'tds_section':getattr(v,'tds_section','194C'),
+                    'vendor_rating':getattr(v,'vendor_rating',0),'last_audit_date':getattr(v,'last_audit_date',''),
+                    'documents':getattr(v,'documents','{}'),
+                    'opening_balance':getattr(v,'opening_balance',0),'opening_balance_type':getattr(v,'opening_balance_type','Dr'),
+                    'ledger_group':getattr(v,'ledger_group','Sundry Creditors'),'total_business_value':getattr(v,'total_business_value',0),
+                    'approval_status':getattr(v,'approval_status','Draft'),'created_by':getattr(v,'created_by','Admin'),
+                    'created_at':getattr(v,'created_at',''),'updated_by':getattr(v,'updated_by','Admin'),
+                    'updated_at':getattr(v,'updated_at',''),'last_transaction_date':getattr(v,'last_transaction_date',''),
+                    'po_count':getattr(v,'po_count',0),'grn_count':getattr(v,'grn_count',0)
+                })
+            except Exception as e:
+                print(f"Vendor backup error {v.id}: {e}")
+        data['vendor']=vendors
+        # Customers
+        try:
+            data['customer']=[{'id':c.id,'name':c.name,'type':getattr(c,'type','')} for c in Customer.query.all()]
+        except:
+            data['customer']=[]
+        # POs - handle both old and new schema
+        pos=[]
+        for p in PO.query.all():
+            try:
+                pos.append({
+                    'id':p.id,'po_no':getattr(p,'po_no',''),'rfq_no':getattr(p,'rfq_no',''),'po_date':getattr(p,'po_date',''),
+                    'po_validity':getattr(p,'po_validity',''),'po_type':getattr(p,'po_type','Raw Material'),
+                    'sbu_id':getattr(p,'sbu_id',None),'sbu_name':getattr(p,'sbu_name',''),
+                    'delivery_address':getattr(p,'delivery_address',''),'billing_address':getattr(p,'billing_address',''),
+                    'same_as_delivery':getattr(p,'same_as_delivery',True),
+                    'product_id':getattr(p,'product_id',None),'product_name_filter':getattr(p,'product_name_filter',''),
+                    'vendor':getattr(p,'vendor',''),'vendor_id':getattr(p,'vendor_id',None),'vendor_code':getattr(p,'vendor_code',''),'vendor_state':getattr(p,'vendor_state',''),
+                    'items':getattr(p,'items','[]'),
+                    'taxable_value':getattr(p,'taxable_value',0),'cgst_amount':getattr(p,'cgst_amount',0),'sgst_amount':getattr(p,'sgst_amount',0),'igst_amount':getattr(p,'igst_amount',0),
+                    'freight_amount':getattr(p,'freight_amount',0),'round_off':getattr(p,'round_off',0),'grand_total':getattr(p,'grand_total',0),
+                    'material':getattr(p,'material',''),'qty':getattr(p,'qty',0),'rate':getattr(p,'rate',0),'unit':getattr(p,'unit','MT'),
+                    'delivery_type':getattr(p,'delivery_type','One Time'),'delivery_schedule':getattr(p,'delivery_schedule',''),
+                    'payment_terms_days':getattr(p,'payment_terms_days',0),'rate_basis':getattr(p,'rate_basis','FOR'),'freight_terms':getattr(p,'freight_terms',''),
+                    'tds_applicable':getattr(p,'tds_applicable','Not Applicable'),'tds_percent':getattr(p,'tds_percent',0),
+                    'rcm_applicable':getattr(p,'rcm_applicable','No'),'rcm_percent':getattr(p,'rcm_percent',0),
+                    'documents':getattr(p,'documents','{}'),'status':getattr(p,'status','Draft'),'approval_status':getattr(p,'approval_status','Draft'),
+                    'created_by':getattr(p,'created_by','Admin'),'created_at':getattr(p,'created_at',''),
+                    'updated_by':getattr(p,'updated_by','Admin'),'updated_at':getattr(p,'updated_at','')
+                })
+            except Exception as e:
+                print(f"PO backup error {p.id}: {e}")
+        data['po']=pos
+        # GRNs
+        data['grn']=[{'id':g.id,'vehicle_no':g.vehicle_no,'material':g.material,'unit':getattr(g,'unit','MT'),'gross_kg':getattr(g,'gross_kg',0),'tare_kg':getattr(g,'tare_kg',0),'vendor':g.vendor,'net_kg':getattr(g,'net_kg',0)} for g in GRN.query.all()]
+        # MOs
+        data['manufacturing_order']=[{'id':m.id,'sbu':m.sbu,'type':m.type,'unit':m.unit,'limestone_mt':getattr(m,'limestone_mt',0),'petcoke_mt':getattr(m,'petcoke_mt',0),'output_mt':getattr(m,'output_mt',0),'wastage':getattr(m,'wastage',0),'input_product':getattr(m,'input_product',''),'output_product':getattr(m,'output_product',''),'operator':getattr(m,'operator',''),'created_at':getattr(m,'created_at','')} for m in MO.query.all()]
+        # Dispatch
+        data['dispatch']=[{'id':d.id,'customer':d.customer,'vehicle_no':d.vehicle_no,'product':d.product,'qty_mt':d.qty_mt,'qr_bags':getattr(d,'qr_bags',0),'unit':d.unit} for d in Dispatch.query.all()]
+        # QR Bags
+        data['qr_bag']=[{'id':q.id,'bag_id':q.bag_id,'product':q.product,'weight':q.weight,'unit':q.unit,'qr_data':q.qr_data,'qr_base64':q.qr_base64,'created_at':q.created_at} for q in QRBag.query.all()]
+        data['meta']={'backup_date':datetime.now().strftime('%Y-%m-%d %H:%M:%S'),'version':'v4.5.1 Backup Module','total_tables':len(data)}
+        return jsonify(data)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify(error=str(e)),500
+
+@app.route('/api/backup/download', methods=['GET'])
+def backup_download():
+    try:
+        # Reuse backup_api logic to get data
+        with app.test_request_context():
+            # Collect data same as backup_api
+            data={}
+            data['product_category']=[{'id':c.id,'category_name':c.category_name,'created_at':c.created_at} for c in ProductCategory.query.all()]
+            data['product']=[{'id':p.id,'name':p.name,'category':p.category,'product_code':p.product_code,'hsn_code':p.hsn_code,'description':p.description} for p in Product.query.all()]
+            data['sbu']=[{'id':s.id,'sbu_name':s.sbu_name,'address':s.address} for s in SBU.query.all()]
+            data['vendor']=[{'id':v.id,'vendor_code':getattr(v,'vendor_code',''),'name':v.name,'station':getattr(v,'station',''),'state':getattr(v,'state',''),'gst_no':getattr(v,'gst_no',''),'pan_no':getattr(v,'pan_no',''),'bank_details':getattr(v,'bank_details','[]'),'contacts':getattr(v,'contacts','[]')} for v in Vendor.query.all()]
+            data['customer']=[{'id':c.id,'name':c.name} for c in Customer.query.all()]
+            data['po']=[{'id':p.id,'po_no':getattr(p,'po_no',''),'po_date':getattr(p,'po_date',''),'vendor':getattr(p,'vendor',''),'grand_total':getattr(p,'grand_total',0),'items':getattr(p,'items','[]')} for p in PO.query.all()]
+            data['grn']=[{'id':g.id,'vehicle_no':g.vehicle_no,'material':g.material,'vendor':g.vendor} for g in GRN.query.all()]
+            data['meta']={'backup_date':datetime.now().strftime('%Y-%m-%d %H:%M:%S'),'version':'v4.5.1'}
+        from flask import Response
+        import json
+        json_str=json.dumps(data, indent=2)
+        filename=f"lemon_erp_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        return Response(json_str, mimetype='application/json', headers={'Content-Disposition': f'attachment; filename={filename}'})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify(error=str(e)),500
+
+@app.route('/api/backup/upload', methods=['POST'])
+def backup_upload():
+    try:
+        data=request.get_json() or {}
+        # If file uploaded as multipart, handle
+        if 'file' in request.files:
+            file=request.files['file']
+            content=file.read().decode('utf-8')
+            data=json.loads(content)
+        # Also support direct JSON body with backup data
+        if 'product_category' in data or 'product' in data or 'vendor' in data:
+            backup_data=data
+        else:
+            # Maybe data is wrapped
+            backup_data=data.get('backup_data') or data
+        
+        restored_counts={}
+        # Restore Product Categories
+        if 'product_category' in backup_data:
+            count=0
+            for cat in backup_data['product_category']:
+                cat_name=cat.get('category_name')
+                if not cat_name: continue
+                existing=ProductCategory.query.filter_by(category_name=cat_name).first()
+                if not existing:
+                    db.session.add(ProductCategory(category_name=cat_name, created_at=cat.get('created_at', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))))
+                    count+=1
+            db.session.commit()
+            restored_counts['product_category']=count
+        
+        # Restore Products
+        if 'product' in backup_data:
+            count=0
+            for prod in backup_data['product']:
+                code=prod.get('product_code')
+                if not code: continue
+                existing=Product.query.filter_by(product_code=code).first()
+                if not existing:
+                    # Find category exists
+                    p=Product(
+                        name=prod.get('name',''), category=prod.get('category',''), product_code=code,
+                        hsn_code=prod.get('hsn_code',''), description=prod.get('description',''),
+                        loose_stock_mt=prod.get('loose_stock_mt',0), jumbo_mt=prod.get('jumbo_mt',0),
+                        hdpe_40kg_mt=prod.get('hdpe_40kg_mt',0), total_stock_mt=prod.get('total_stock_mt',0)
+                    )
+                    db.session.add(p)
+                    count+=1
+            db.session.commit()
+            restored_counts['product']=count
+        
+        # Restore SBUs
+        if 'sbu' in backup_data:
+            count=0
+            for s in backup_data['sbu']:
+                name=s.get('sbu_name')
+                if not name: continue
+                existing=SBU.query.filter_by(sbu_name=name).first()
+                if not existing:
+                    db.session.add(SBU(sbu_name=name, address=s.get('address','')))
+                    count+=1
+            db.session.commit()
+            restored_counts['sbu']=count
+        
+        # Restore Vendors
+        if 'vendor' in backup_data:
+            count=0
+            for v in backup_data['vendor']:
+                code=v.get('vendor_code')
+                name=v.get('name')
+                if not name: continue
+                existing=None
+                if code:
+                    existing=Vendor.query.filter_by(vendor_code=code).first()
+                if not existing:
+                    existing=Vendor.query.filter_by(name=name).first()
+                if not existing:
+                    # Create vendor with minimal fields, try full fields if model supports
+                    try:
+                        vendor=Vendor(
+                            vendor_code=code or f"VEND-{Vendor.query.count()+1:04d}",
+                            name=name,
+                            station=v.get('station',''), address=v.get('address',''), state=v.get('state',''),
+                            gst_no=v.get('gst_no',''), pan_no=v.get('pan_no',''), tan_no=v.get('tan_no',''),
+                            legal_status=v.get('legal_status',''), vendor_category=v.get('vendor_category',''),
+                            bank_details=v.get('bank_details','[]') if isinstance(v.get('bank_details'), str) else json.dumps(v.get('bank_details',[])),
+                            contacts=v.get('contacts','[]') if isinstance(v.get('contacts'), str) else json.dumps(v.get('contacts',[])),
+                            status=v.get('status','Active')
+                        )
+                        # Try to set extra fields if they exist on model
+                        for field in ['msme_cert_no','msme_expiry','gst_reg_type','tds_section','vendor_rating','documents','opening_balance','ledger_group','approval_status']:
+                            if field in v and hasattr(vendor, field):
+                                setattr(vendor, field, v[field])
+                        db.session.add(vendor)
+                        count+=1
+                    except Exception as e:
+                        print(f"Vendor restore error {name}: {e}")
+            db.session.commit()
+            restored_counts['vendor']=count
+        
+        # Restore POs
+        if 'po' in backup_data:
+            count=0
+            for p in backup_data['po']:
+                po_no=p.get('po_no')
+                if po_no:
+                    existing=PO.query.filter_by(po_no=po_no).first()
+                    if existing:
+                        continue
+                # Create PO - try with new schema, fallback to old
+                try:
+                    po=PO(
+                        po_no=po_no or f"PO/RESTORE/{PO.query.count()+1:04d}",
+                        po_date=p.get('po_date',''), po_type=p.get('po_type','Raw Material'),
+                        sbu_name=p.get('sbu_name',''), vendor=p.get('vendor',''),
+                        material=p.get('material',''), qty=p.get('qty',0), rate=p.get('rate',0),
+                        unit=p.get('unit','MT'), status=p.get('status','Draft')
+                    )
+                    # Try set new fields if exist
+                    for field in ['rfq_no','po_validity','sbu_id','delivery_address','billing_address','same_as_delivery','product_id','product_name_filter','vendor_id','vendor_code','vendor_state','items','taxable_value','cgst_amount','sgst_amount','igst_amount','freight_amount','round_off','grand_total','delivery_type','delivery_schedule','payment_terms_days','rate_basis','freight_terms','tds_applicable','tds_percent','rcm_applicable','rcm_percent','documents','approval_status','created_by']:
+                        if field in p and hasattr(po, field):
+                            setattr(po, field, p[field])
+                    db.session.add(po)
+                    count+=1
+                except Exception as e:
+                    print(f"PO restore error {po_no}: {e}")
+            db.session.commit()
+            restored_counts['po']=count
+        
+        # Restore Customers
+        if 'customer' in backup_data:
+            count=0
+            for c in backup_data['customer']:
+                name=c.get('name')
+                if not name: continue
+                existing=Customer.query.filter_by(name=name).first()
+                if not existing:
+                    db.session.add(Customer(name=name, type=c.get('type','')))
+                    count+=1
+            db.session.commit()
+            restored_counts['customer']=count
+        
+        return jsonify(ok=True, restored=restored_counts, message=f"Backup restored: {restored_counts}")
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        db.session.rollback()
+        return jsonify(error=str(e)),500
+
 @app.route('/api/grn', methods=['GET','POST'])
 def grn_api():
     if request.method=='GET': return jsonify([{'id':g.id,'vehicle_no':g.vehicle_no,'material':g.material,'vendor':g.vendor} for g in GRN.query.order_by(GRN.id.desc()).all()])
@@ -1187,6 +1451,8 @@ input,select,textarea{padding:8px 10px;border-radius:7px;border:1.5px solid var(
 <div class="menu" onclick="openTab('customers')"><i class="bi bi-person"></i> Customers</div>
 <div class="menu" onclick="openTab('cost')"><i class="bi bi-currency-rupee"></i> Cost</div>
 <div class="menu" onclick="openTab('mobile')"><i class="bi bi-phone"></i> Mobile</div>
+<h4>BACKUP</h4>
+<div class="menu" onclick="openTab('backup')"><i class="bi bi-cloud-arrow-down"></i> Backup & Restore</div>
 </div>
 <div class="content">
 <!-- DASH -->
@@ -1269,6 +1535,36 @@ input,select,textarea{padding:8px 10px;border-radius:7px;border:1.5px solid var(
 <div id="qr" class="tabcontent hidden"><div class="card"><h3>QR</h3><p>QR module</p><div id="qrList"></div></div></div>
 <div id="cost" class="tabcontent hidden"><div class="card"><h3>Cost</h3><div id="costVal"></div><div id="costTbl"></div></div></div>
 <div id="mobile" class="tabcontent hidden"><div class="card"><h3>Mobile - Placeholder</h3></div></div>
+
+<!-- BACKUP MODULE v4.5.1 - ONLY BACKUP MODULE ADDED - OTHER MODULES LOCKED -->
+<div id="backup" class="tabcontent hidden">
+<div class="card" style="text-align:center;padding:24px">
+<h1 style="font-size:26px;font-weight:900;margin:0 0 6px;text-align:center"><i class="bi bi-cloud-arrow-down"></i> Backup & Restore Module</h1>
+<p style="font-size:11px;color:#666;text-align:center;margin:0 0 14px">Backup all ERP data to JSON file + Restore from backup file - v4.5.1 - Other modules locked - Base v1.3.py</p>
+<div class="row" style="justify-content:center;max-width:600px;margin:0 auto">
+<button class="btn btn-g" style="padding:14px 36px;font-size:15px;font-weight:800" onclick="backupNow()"><i class="bi bi-download"></i> Backup Now - Download Backup File</button>
+<button class="btn btn-y" style="padding:14px 36px;font-size:15px;font-weight:800" onclick="openAddDataPopup()"><i class="bi bi-upload"></i> Add Data - Upload Backup</button>
+</div>
+</div>
+
+<div class="card">
+<h3>Backup Information - v4.5.1</h3>
+<div class="row">
+<div class="card kpi" style="flex:1"><div>Total Categories</div><div class="val" id="backupCatCount">0</div></div>
+<div class="card kpi" style="flex:1"><div>Total Products</div><div class="val" id="backupProdCount">0</div></div>
+<div class="card kpi" style="flex:1"><div>Total Vendors</div><div class="val" id="backupVendorCount">0</div></div>
+<div class="card kpi" style="flex:1"><div>Total POs</div><div class="val" id="backupPOCount">0</div></div>
+</div>
+<p style="font-size:11px;color:#666">Backup file format: JSON - Contains product_category, product, sbu, vendor, customer, po, grn, dispatch, qr_bag, manufacturing_order - File name: lemon_erp_backup_YYYYMMDD_HHMMSS.json - Can be used for uploading to restore data into respective tables</p>
+<div id="backupStatus" style="margin-top:10px;padding:10px;background:#FFFBEB;border:1px solid var(--brass);border-radius:8px;display:none"></div>
+</div>
+
+<div class="card">
+<h3>Last Backup Details</h3>
+<div id="backupDetails">No backup yet - Click Backup Now button to create backup file</div>
+</div>
+</div>
+
 </div></div>
 
 <!-- PRODUCT MODAL -->
@@ -1366,9 +1662,42 @@ input,select,textarea{padding:8px 10px;border-radius:7px;border:1.5px solid var(
 </div>
 </div><div class="modal-footer"><button class="btn btn-g" style="flex:1;padding:14px;font-size:13px" onclick="savePO()">Save PO - v4.5 Fixed</button><button class="btn btn-w" onclick="closeAddPOPopup()">Cancel</button></div></div></div>
 
+<!-- BACKUP MODALS v4.5.1 - ONLY BACKUP MODULE - OTHER MODULES LOCKED -->
+<div id="backupModal" class="modal hidden" onclick="if(event.target===this) closeAddDataPopup()"><div class="modal-content" style="max-width:700px"><div class="modal-header"><b>Add Data - Upload Backup File - Drag & Drop + Upload to Database - v4.5.1</b><button class="close-x" onclick="closeAddDataPopup()">×</button></div><div class="modal-body">
+<div class="form-box" style="background:#FFFBEB;border:2px solid var(--brass)"><b>Upload Backup Data - Drag & Drop JSON file - v4.5.1</b>
+<p style="font-size:11px;color:#666">Drag and drop backup JSON file (lemon_erp_backup_*.json) or click to select file - File contains product_category, product, sbu, vendor, customer, po, grn, etc - When file dropped, Upload Data button will appear to upload into database tables</p>
+
+<div class="drop-zone" id="dz_backup_file" onclick="document.getElementById('file_backup').click()" ondragover="handleBackupDragOver(event)" ondragleave="handleBackupDragLeave(event)" ondrop="handleBackupDrop(event)" style="min-height:150px;border:3px dashed var(--brass)">
+<i class="bi bi-cloud-arrow-up" style="font-size:40px"></i>
+<div class="dz-title" style="font-size:14px">Backup File - Drag & Drop Here</div>
+<div class="dz-hint">Click to select JSON backup file or drag & drop here<br>Supported: lemon_erp_backup_*.json - Max 10MB</div>
+<div class="dz-file" id="dz_file_backup" style="display:none"></div>
+<button class="dz-clear" id="dz_clear_backup" style="display:none" onclick="clearBackupFile(event)">Clear</button>
+</div>
+<input type="file" id="file_backup" hidden accept=".json" onchange="handleBackupFileSelect(event)">
+<input type="hidden" id="backup_file_content">
+<div id="backup_file_info" style="margin-top:10px;padding:10px;background:white;border-radius:8px;border:1px solid var(--line);display:none">
+<h4 style="margin:0 0 8px">📄 Backup File Preview</h4>
+<div id="backup_preview"></div>
+</div>
+
+<div id="backup_upload_section" style="margin-top:16px;display:none">
+<div style="padding:12px;background:#E6F4EA;border:1px solid #1E7D32;border-radius:8px">
+<b>✅ File Ready to Upload</b><br>
+<small id="backup_file_summary" style="color:#1A2E1E"></small>
+</div>
+<button class="btn btn-g" style="width:100%;padding:14px;font-size:14px;font-weight:800;margin-top:12px" onclick="uploadBackupData()"><i class="bi bi-cloud-upload"></i> Upload Data - Restore into Database Tables</button>
+<p style="font-size:10px;color:#666;margin-top:8px">When clicked, all data in backup file will be uploaded into respective data tables - product_category → Product Category table, product → Products table, sbu → SBUs table, vendor → Vendors table, po → POs table, etc - Existing data preserved, only new data added</p>
+</div>
+
+<div id="backup_upload_result" style="margin-top:16px;display:none;padding:12px;border-radius:8px"></div>
+
+</div>
+</div><div class="modal-footer"><button class="btn btn-w" onclick="closeAddDataPopup()">Close</button></div></div></div>
+
 
 <script>
-function openTab(id){document.querySelectorAll('.tabcontent').forEach(e=>e.classList.add('hidden'));document.getElementById(id).classList.remove('hidden');document.querySelectorAll('.menu').forEach(m=>m.classList.remove('active')); if(id==='product_category') loadCategories(); if(id==='products') loadProducts(); if(id==='sbus') loadSBUs(); if(id==='dash') loadDash(); if(id==='stock') loadStock(); if(id==='vendors') loadVendors(); if(id==='buy') loadPOs();}
+function openTab(id){document.querySelectorAll('.tabcontent').forEach(e=>e.classList.add('hidden'));document.getElementById(id).classList.remove('hidden');document.querySelectorAll('.menu').forEach(m=>m.classList.remove('active')); if(id==='product_category') loadCategories(); if(id==='products') loadProducts(); if(id==='sbus') loadSBUs(); if(id==='dash') loadDash(); if(id==='stock') loadStock(); if(id==='vendors') loadVendors(); if(id==='buy') loadPOs(); if(id==='backup') loadBackupInfo();}
 
 let allProducts=[], finishedProducts=[]; let kilnCounter=0;
 async function loadAllProductsForSBU(){
@@ -1930,7 +2259,104 @@ function clearPODoc(docType, e){ if(e){ e.preventDefault(); e.stopPropagation();
 function setPODocFromExisting(docType, base64Value){ if(!base64Value) return; document.getElementById('doc_'+docType).value=base64Value; let fileDiv=document.getElementById('dz_file_'+docType); let infoDiv=document.getElementById('doc_'+docType+'_info'); let clearBtn=document.getElementById('dz_clear_'+docType); if(fileDiv){ fileDiv.style.display='block'; fileDiv.innerHTML=`📎 Existing ${(base64Value.length/1024).toFixed(1)}KB`; } if(infoDiv) infoDiv.innerHTML=`✅ Loaded`; if(clearBtn) clearBtn.style.display='inline-block'; }
 function openAddPOPopup(){ document.getElementById('poModal').classList.remove('hidden'); document.getElementById('po_id').value=''; document.getElementById('po_rfq_no').value=''; document.getElementById('po_no_preview').value=''; document.getElementById('po_date').value=new Date().toISOString().split('T')[0]; document.getElementById('po_validity').value=''; document.getElementById('po_type').value='Raw Material'; document.getElementById('po_sbu').value=''; document.getElementById('po_delivery_address').value=''; document.getElementById('po_billing_address').value=''; document.getElementById('po_same_as_delivery').checked=true; document.getElementById('po_product_id').value=''; document.getElementById('po_product_filter').value=''; document.getElementById('po_vendor').value=''; document.getElementById('poItemsContainer').innerHTML='<p style="text-align:center;color:#888;padding:12px">No line items - Click Add Line Item Button</p>'; document.getElementById('po_taxable').value=''; document.getElementById('po_cgst').value=''; document.getElementById('po_sgst').value=''; document.getElementById('po_igst').value=''; document.getElementById('po_freight').value=''; document.getElementById('po_round_off').value='0'; document.getElementById('po_grand_total').value=''; document.getElementById('po_delivery_type').value='One Time'; document.getElementById('po_delivery_schedule').value=''; document.getElementById('po_payment_terms').value=''; document.getElementById('po_rate_basis').value='FOR'; document.getElementById('po_freight_terms').value=''; document.getElementById('po_tds_applicable').value='Not Applicable'; document.getElementById('po_tds_percent').value=''; document.getElementById('po_rcm_applicable').value='No'; document.getElementById('po_rcm_percent').value=''; ['po_doc','freight_slip'].forEach(dt=>{ clearPODoc(dt); }); document.getElementById('po_status').value='Draft'; document.getElementById('po_created_by').value='Admin'; loadPOMasters(); poLineCounter=0; }
 function closeAddPOPopup(){ document.getElementById('poModal').classList.add('hidden'); }
-async function savePO(){ let sbuId=document.getElementById('po_sbu').value; if(!sbuId) return alert('SBU mandatory'); let vendorId=document.getElementById('po_vendor').value; if(!vendorId) return alert('Vendor mandatory'); let items=[]; let valid=true; document.querySelectorAll('#poItemsContainer > div[id^="poline_"]').forEach(div=>{ let product_id=div.querySelector('.po_product_id').value || div.querySelector('.po_product_select').value; let product_code=div.querySelector('.po_product_code').value; let product_name=div.querySelector('.po_product_name').value; let hsn=div.querySelector('.po_hsn').value; let spec=div.querySelector('.po_spec').value; let uom=div.querySelector('.po_uom').value; let qty=div.querySelector('.po_qty').value; let rate=div.querySelector('.po_rate').value; let gst_percent=div.querySelector('.po_gst_percent').value; let gst_type=div.querySelector('.po_gst_type').value; if(!product_id || !qty || !rate){ valid=false; } items.push({product_id: product_id?parseInt(product_id):null, product_code, product_name, hsn_code:hsn, spec, uom, qty:parseFloat(qty)||0, rate:parseFloat(rate)||0, gst_percent:parseFloat(gst_percent)||0, gst_type}); }); if(!valid || items.length===0) return alert('Add at least one line item with Product, Qty, Rate'); let docs={po_doc:document.getElementById('doc_po_doc').value, freight_slip:document.getElementById('doc_freight_slip').value}; let payload={rfq_no:document.getElementById('po_rfq_no').value, po_date:document.getElementById('po_date').value, po_validity:document.getElementById('po_validity').value, po_type:document.getElementById('po_type').value, sbu_id: sbuId?parseInt(sbuId):null, delivery_address:document.getElementById('po_delivery_address').value, billing_address:document.getElementById('po_billing_address').value, same_as_delivery:document.getElementById('po_same_as_delivery').checked, product_id: document.getElementById('po_product_id').value?parseInt(document.getElementById('po_product_id').value):null, product_name_filter: document.getElementById('po_product_filter').selectedOptions[0]?.text?.split('(')[0]?.trim()||'', vendor_id: vendorId?parseInt(vendorId):null, items:items, freight_amount:parseFloat(document.getElementById('po_freight').value)||0, round_off:parseFloat(document.getElementById('po_round_off').value)||0, delivery_type:document.getElementById('po_delivery_type').value, delivery_schedule:document.getElementById('po_delivery_schedule').value, payment_terms_days:parseInt(document.getElementById('po_payment_terms').value)||0, rate_basis:document.getElementById('po_rate_basis').value, freight_terms:document.getElementById('po_freight_terms').value, tds_applicable:document.getElementById('po_tds_applicable').value, tds_percent:parseFloat(document.getElementById('po_tds_percent').value)||0, rcm_applicable:document.getElementById('po_rcm_applicable').value, rcm_percent:parseFloat(document.getElementById('po_rcm_percent').value)||0, documents:docs, status:document.getElementById('po_status').value, approval_status:document.getElementById('po_status').value, created_by:document.getElementById('po_created_by').value}; let poId=document.getElementById('po_id').value; let url=poId?`/api/po/${poId}`:'/api/po'; let method=poId?'PUT':'POST'; let res=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); let j=await res.json(); if(res.ok){ alert(`PO ${poId?'Updated':'Created'}: ${j.po_no} - Grand Rs ${j.grand_total}`); closeAddPOPopup(); loadPOs(); } else alert(j.error||'Error'); }
+async function savePO(){
+  try{
+    console.log('Save PO clicked - v4.5.1 BACKUP MODULE - Only Buy module + Backup module');
+    let sbuEl=document.getElementById('po_sbu');
+    let vendorEl=document.getElementById('po_vendor');
+    let sbuId=sbuEl? sbuEl.value.trim() : '';
+    let vendorId=vendorEl? vendorEl.value.trim() : '';
+    console.log('SBU:', sbuId, 'Vendor:', vendorId);
+    if(!sbuId){ alert('⚠️ SBU mandatory - Select SBU from dropdown'); return; }
+    if(!vendorId){ alert('⚠️ Vendor mandatory - Select Vendor'); return; }
+    let lineDivs=document.querySelectorAll('#poItemsContainer > div[id^="poline_"]');
+    console.log('Lines:', lineDivs.length);
+    if(lineDivs.length===0){ alert('⚠️ Add at least one line item - Click Add Line Item'); return; }
+    let items=[];
+    let valid=true;
+    lineDivs.forEach((div, idx)=>{
+      let pid_el=div.querySelector('.po_product_id');
+      let psel_el=div.querySelector('.po_product_select');
+      let product_id=(pid_el && pid_el.value.trim()) || (psel_el && psel_el.value.trim()) || '';
+      let product_code=div.querySelector('.po_product_code')?.value.trim()||'';
+      let product_name=div.querySelector('.po_product_name')?.value.trim()||'';
+      let hsn=div.querySelector('.po_hsn')?.value.trim()||'';
+      let spec=div.querySelector('.po_spec')?.value.trim()||'';
+      let uom=div.querySelector('.po_uom')?.value.trim()||'MT';
+      let qty_str=div.querySelector('.po_qty')?.value.trim()||'';
+      let rate_str=div.querySelector('.po_rate')?.value.trim()||'';
+      let gst_percent=div.querySelector('.po_gst_percent')?.value.trim()||'18';
+      let gst_type=div.querySelector('.po_gst_type')?.value||'inter';
+      if(!product_id && product_name){
+        let found=poProducts.find(p=>p.name===product_name);
+        if(found) product_id=String(found.id);
+      }
+      let qty=parseFloat(qty_str);
+      let rate=parseFloat(rate_str);
+      if(!product_id || isNaN(qty) || qty<=0 || isNaN(rate) || rate<=0){
+        console.log('Invalid line', idx+1, {product_id, qty_str, rate_str, product_name});
+        valid=false;
+      }
+      items.push({product_id: product_id?parseInt(product_id):null, product_code, product_name, hsn_code:hsn, spec, uom, qty: isNaN(qty)?0:qty, rate: isNaN(rate)?0:rate, gst_percent: parseFloat(gst_percent)||0, gst_type});
+    });
+    if(!valid){ alert('⚠️ Check line items - Each needs: Product selected + Qty >0 (3 decimal) + Rate >0 (2 decimal)'); return; }
+    if(items.length===0){ alert('⚠️ No valid line items'); return; }
+    let productFilterEl=document.getElementById('po_product_filter');
+    let product_name_filter='';
+    if(productFilterEl && productFilterEl.selectedOptions && productFilterEl.selectedOptions[0]){
+      product_name_filter=productFilterEl.selectedOptions[0].text.split('(')[0].trim();
+    }
+    if(!product_name_filter && items[0]) product_name_filter=items[0].product_name||'PRODUCT';
+    if(!product_name_filter) product_name_filter='PRODUCT';
+    let docs={po_doc: document.getElementById('doc_po_doc')?.value||'', freight_slip: document.getElementById('doc_freight_slip')?.value||''};
+    let payload={
+      rfq_no: document.getElementById('po_rfq_no')?.value||'',
+      po_date: document.getElementById('po_date')?.value||new Date().toISOString().split('T')[0],
+      po_validity: document.getElementById('po_validity')?.value||'',
+      po_type: document.getElementById('po_type')?.value||'Raw Material',
+      sbu_id: parseInt(sbuId),
+      delivery_address: document.getElementById('po_delivery_address')?.value||'',
+      billing_address: document.getElementById('po_billing_address')?.value||'',
+      same_as_delivery: document.getElementById('po_same_as_delivery')?.checked||true,
+      product_id: document.getElementById('po_product_id')?.value? parseInt(document.getElementById('po_product_id').value) : null,
+      product_name_filter: product_name_filter,
+      vendor_id: parseInt(vendorId),
+      items: items,
+      freight_amount: parseFloat(document.getElementById('po_freight')?.value)||0,
+      round_off: parseFloat(document.getElementById('po_round_off')?.value)||0,
+      delivery_type: document.getElementById('po_delivery_type')?.value||'One Time',
+      delivery_schedule: document.getElementById('po_delivery_schedule')?.value||'',
+      payment_terms_days: parseInt(document.getElementById('po_payment_terms')?.value)||0,
+      rate_basis: document.getElementById('po_rate_basis')?.value||'FOR',
+      freight_terms: document.getElementById('po_freight_terms')?.value||'',
+      tds_applicable: document.getElementById('po_tds_applicable')?.value||'Not Applicable',
+      tds_percent: parseFloat(document.getElementById('po_tds_percent')?.value)||0,
+      rcm_applicable: document.getElementById('po_rcm_applicable')?.value||'No',
+      rcm_percent: parseFloat(document.getElementById('po_rcm_percent')?.value)||0,
+      documents: docs,
+      status: document.getElementById('po_status')?.value||'Draft',
+      approval_status: document.getElementById('po_status')?.value||'Draft',
+      created_by: document.getElementById('po_created_by')?.value||'Admin'
+    };
+    console.log('PO Payload to save:', payload);
+    let poId=document.getElementById('po_id')?.value||'';
+    let url=poId?`/api/po/${poId}`:'/api/po';
+    let method=poId?'PUT':'POST';
+    let res=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    let j=await res.json();
+    console.log('PO Save response:', res.status, j);
+    if(res.ok){
+      alert(`✅ PO ${poId?'Updated':'Created'}: ${j.po_no} - Grand Total Rs ${j.grand_total}`);
+      closeAddPOPopup();
+      loadPOs();
+    } else {
+      alert(`❌ Save failed: ${j.error||'Unknown'} (Status ${res.status}) - Check F12 console`);
+    }
+  }catch(err){
+    console.error('Save PO JS Error:', err);
+    alert(`❌ JS Error: ${err.message} - Open F12 console`);
+  }
+}
 async function loadPOs(){ await loadPOMasters(); let search=document.getElementById('poSearch')?.value||''; let poType=document.getElementById('poTypeFilter')?.value||''; let status=document.getElementById('poStatusFilter')?.value||''; let sbu=document.getElementById('poSbuFilter')?.value||''; let vendor=document.getElementById('poVendorFilter')?.value||''; let params=new URLSearchParams({search, po_type:poType, status, sbu, vendor}); let r=await fetch(`/api/po?${params}`); let pos=await r.json(); document.getElementById('poCountBadge').innerText=`${pos.length} POs`; let tb=document.getElementById('poTbl'); tb.innerHTML=''; if(pos.length===0){ tb.innerHTML=`<tr><td colspan="9" style="text-align:center;padding:20px;color:#888">No POs - Add Purchase Order Button - v4.5 PO/26-27/PRODUCT/0001</td></tr>`; return; } pos.forEach((p,i)=>{ let itemsHtml=(p.items||[]).map(it=>`<span style="display:block;background:#FFFBEB;padding:3px 6px;border-radius:4px;margin:2px 0;border:1px solid var(--brass);font-size:10px"><b>${it.product_code}</b> ${it.product_name} - ${it.qty} ${it.uom} x ${it.rate} = ${it.amount} + GST ${it.gst_percent}% = ${it.total_amount}</span>`).join(''); let statusClass=p.status==='Approved'?'ok':p.status==='Draft'?'brass':p.status==='Closed'?'ok':'warn'; let docsBadge=p.has_docs?`<span class="badge ok">Docs</span>`:'<small style="color:#888">No docs</small>'; let gstBreakup=`Taxable: Rs ${p.taxable_value}<br>CGST: ${p.cgst_amount} SGST: ${p.sgst_amount}<br>IGST: ${p.igst_amount}<br>Freight: ${p.freight_amount} Round: ${p.round_off}<br><b>Grand: Rs ${p.grand_total}</b>`; tb.innerHTML+=`<tr><td>${i+1}</td><td><span style="background:var(--alab);padding:3px 8px;border-radius:6px;border:1px solid var(--line);font-weight:800">${p.po_no}</span><br><small>RFQ: ${p.rfq_no||''}</small><br><small>Date: ${p.po_date}</small><br><small>Validity: ${p.po_validity||''}</small></td><td><b>${p.sbu_name}</b><br><small>${(p.delivery_address||'').substring(0,60)}</small></td><td><b>${p.vendor}</b> (${p.vendor_code})<br><small>State: ${p.vendor_state}</small></td><td><span class="badge brass">${p.po_type}</span><br><small>Items: ${p.items_count} Qty: ${p.total_qty}</small><div style="max-height:80px;overflow-y:auto">${itemsHtml}</div></td><td><small>${gstBreakup}</small></td><td><small>Type: ${p.delivery_type}<br>Schedule: ${p.delivery_schedule||''}<br>Pay: ${p.payment_terms_days} days<br>Rate Basis: ${p.rate_basis}<br>TDS: ${p.tds_applicable} ${p.tds_percent}%<br>RCM: ${p.rcm_applicable}</small></td><td>${docsBadge}<br><span class="badge ${statusClass}">${p.status}</span><br><small>${p.created_by}</small></td><td><button class="btn btn-b" onclick="editPO(${p.id})">Edit</button> <button class="btn btn-y" onclick="duplicatePO(${p.id})">Copy</button><br><button class="btn btn-w" style="margin-top:4px" onclick="emailPO(${p.id})">Email</button> <button class="btn btn-g" style="margin-top:4px" onclick="whatsappPO(${p.id})">WhatsApp</button><br><button class="btn btn-r" style="margin-top:4px" onclick="delPO(${p.id})">Del</button></td></tr>`; }); }
 function resetPOFilters(){ document.getElementById('poSearch').value=''; document.getElementById('poTypeFilter').value=''; document.getElementById('poStatusFilter').value=''; document.getElementById('poSbuFilter').value=''; document.getElementById('poVendorFilter').value=''; loadPOs(); }
 async function editPO(id){ let r=await fetch(`/api/po/${id}`); let p=await r.json(); openAddPOPopup(); setTimeout(()=>{ document.getElementById('po_id').value=p.id; document.getElementById('po_rfq_no').value=p.rfq_no||''; document.getElementById('po_no_preview').value=p.po_no; document.getElementById('po_date').value=p.po_date||''; document.getElementById('po_validity').value=p.po_validity||''; document.getElementById('po_type').value=p.po_type||'Raw Material'; document.getElementById('po_sbu').value=p.sbu_id||''; document.getElementById('po_delivery_address').value=p.delivery_address||''; document.getElementById('po_billing_address').value=p.billing_address||''; document.getElementById('po_same_as_delivery').checked=p.same_as_delivery; document.getElementById('po_product_id').value=p.product_id||''; document.getElementById('po_product_filter').value=p.product_id||''; document.getElementById('po_vendor').value=p.vendor_id||''; document.getElementById('poItemsContainer').innerHTML=''; (p.items||[]).forEach(it=>{ addPOLineItem(); let lastId=document.querySelector('#poItemsContainer > div:last-child').id; let div=document.getElementById(lastId); div.querySelector('.po_product_id').value=it.product_id||''; div.querySelector('.po_product_select').value=it.product_id||''; div.querySelector('.po_product_code').value=it.product_code||''; div.querySelector('.po_product_name').value=it.product_name||''; div.querySelector('.po_hsn').value=it.hsn_code||''; div.querySelector('.po_spec').value=it.spec||''; div.querySelector('.po_uom').value=it.uom||'MT'; div.querySelector('.po_qty').value=it.qty||''; div.querySelector('.po_rate').value=it.rate||''; div.querySelector('.po_gst_percent').value=it.gst_percent||''; div.querySelector('.po_gst_type').value=it.gst_type||'inter'; recalcPOLine(lastId); }); document.getElementById('po_taxable').value=p.taxable_value; document.getElementById('po_cgst').value=p.cgst_amount; document.getElementById('po_sgst').value=p.sgst_amount; document.getElementById('po_igst').value=p.igst_amount; document.getElementById('po_freight').value=p.freight_amount; document.getElementById('po_round_off').value=p.round_off; document.getElementById('po_grand_total').value=p.grand_total; document.getElementById('po_delivery_type').value=p.delivery_type||'One Time'; document.getElementById('po_delivery_schedule').value=p.delivery_schedule||''; document.getElementById('po_payment_terms').value=p.payment_terms_days||''; document.getElementById('po_rate_basis').value=p.rate_basis||'FOR'; document.getElementById('po_freight_terms').value=p.freight_terms||''; document.getElementById('po_tds_applicable').value=p.tds_applicable||'Not Applicable'; document.getElementById('po_tds_percent').value=p.tds_percent||''; document.getElementById('po_rcm_applicable').value=p.rcm_applicable||'No'; document.getElementById('po_rcm_percent').value=p.rcm_percent||''; setPODocFromExisting('po_doc', p.documents?.po_doc||''); setPODocFromExisting('freight_slip', p.documents?.freight_slip||''); document.getElementById('doc_po_doc').value=p.documents?.po_doc||''; document.getElementById('doc_freight_slip').value=p.documents?.freight_slip||''; document.getElementById('po_status').value=p.status||'Draft'; }, 700); }
@@ -1939,7 +2365,126 @@ async function delPO(id){ if(!confirm('Delete PO?')) return; await fetch(`/api/p
 function emailPO(id){ fetch(`/api/po/${id}`).then(r=>r.json()).then(p=>{ let subject=`Purchase Order ${p.po_no}`; let body=`Dear ${p.vendor},\nPO ${p.po_no} dated ${p.po_date} Grand Rs ${p.grand_total}\nSBU: ${p.sbu_name}`; window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`); }); }
 function whatsappPO(id){ fetch(`/api/po/${id}`).then(r=>r.json()).then(p=>{ let msg=`*PO ${p.po_no}*\nDate: ${p.po_date}\nSBU: ${p.sbu_name}\nGrand: Rs ${p.grand_total}\nPay: ${p.payment_terms_days} days`; window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`); }); }
 
+async function delVendor(id){ if(!confirm('Delete Vendor?')) return; await fetch(`/api/vendors/${id}`,{method:'DELETE'}); loadVendors();}
 
+// ========== BACKUP MODULE v4.5.1 - ONLY BACKUP MODULE - OTHER MODULES LOCKED ==========
+async function loadBackupInfo(){
+  try{
+    let r=await fetch('/api/backup');
+    let data=await r.json();
+    if(document.getElementById('backupCatCount')) document.getElementById('backupCatCount').innerText=(data.product_category||[]).length;
+    if(document.getElementById('backupProdCount')) document.getElementById('backupProdCount').innerText=(data.product||[]).length;
+    if(document.getElementById('backupVendorCount')) document.getElementById('backupVendorCount').innerText=(data.vendor||[]).length;
+    if(document.getElementById('backupPOCount')) document.getElementById('backupPOCount').innerText=(data.po||[]).length;
+    let details=`Backup Date: ${data.meta?.backup_date||new Date().toLocaleString()}<br>Version: ${data.meta?.version||'v4.5.1'}<br>Total Tables: ${Object.keys(data).length}<br><br>`;
+    details+=`Categories: ${data.product_category?.length||0} | Products: ${data.product?.length||0} | SBUs: ${data.sbu?.length||0} | Vendors: ${data.vendor?.length||0} | Customers: ${data.customer?.length||0} | POs: ${data.po?.length||0} | GRNs: ${data.grn?.length||0} | Dispatch: ${data.dispatch?.length||0} | QR Bags: ${data.qr_bag?.length||0} | MOs: ${data.manufacturing_order?.length||0}`;
+    if(document.getElementById('backupDetails')) document.getElementById('backupDetails').innerHTML=details;
+  }catch(e){
+    console.error('loadBackupInfo error', e);
+    if(document.getElementById('backupDetails')) document.getElementById('backupDetails').innerHTML=`Error: ${e.message}`;
+  }
+}
+
+async function backupNow(){
+  try{
+    if(document.getElementById('backupStatus')){
+      document.getElementById('backupStatus').style.display='block';
+      document.getElementById('backupStatus').innerHTML='⏳ Creating backup file...';
+    }
+    let link=document.createElement('a');
+    link.href='/api/backup/download';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    if(document.getElementById('backupStatus')){
+      document.getElementById('backupStatus').innerHTML='✅ Backup download started - Check Downloads - lemon_erp_backup_*.json';
+      document.getElementById('backupStatus').style.background='#E6F4EA';
+    }
+    setTimeout(()=>{ loadBackupInfo(); }, 1000);
+  }catch(e){
+    console.error('backupNow error', e);
+    if(document.getElementById('backupStatus')) document.getElementById('backupStatus').innerHTML=`❌ Backup failed: ${e.message}`;
+  }
+}
+
+function openAddDataPopup(){
+  if(document.getElementById('backupModal')) document.getElementById('backupModal').classList.remove('hidden');
+  clearBackupFile();
+}
+function closeAddDataPopup(){
+  if(document.getElementById('backupModal')) document.getElementById('backupModal').classList.add('hidden');
+}
+function handleBackupDragOver(e){ e.preventDefault(); e.stopPropagation(); if(document.getElementById('dz_backup_file')) document.getElementById('dz_backup_file').classList.add('dragover'); }
+function handleBackupDragLeave(e){ e.preventDefault(); e.stopPropagation(); if(document.getElementById('dz_backup_file')) document.getElementById('dz_backup_file').classList.remove('dragover'); }
+function handleBackupDrop(e){
+  e.preventDefault(); e.stopPropagation();
+  if(document.getElementById('dz_backup_file')) document.getElementById('dz_backup_file').classList.remove('dragover');
+  let files=e.dataTransfer.files;
+  if(files.length>0) processBackupFile(files[0]);
+}
+function handleBackupFileSelect(e){ let file=e.target.files[0]; if(file) processBackupFile(file); }
+function processBackupFile(file){
+  if(!file.name.endsWith('.json')){ alert('⚠️ Only JSON backup files'); return; }
+  if(file.size>10*1024*1024){ alert('⚠️ File too large Max 10MB'); return; }
+  let reader=new FileReader();
+  reader.onload=function(ev){
+    try{
+      let content=ev.target.result;
+      let data=JSON.parse(content);
+      if(document.getElementById('backup_file_content')) document.getElementById('backup_file_content').value=content;
+      let fileDiv=document.getElementById('dz_file_backup');
+      let infoDiv=document.getElementById('backup_file_info');
+      let previewDiv=document.getElementById('backup_preview');
+      let uploadSection=document.getElementById('backup_upload_section');
+      let summaryEl=document.getElementById('backup_file_summary');
+      let clearBtn=document.getElementById('dz_clear_backup');
+      if(fileDiv){ fileDiv.style.display='block'; fileDiv.innerHTML=`📄 ${file.name} (${(file.size/1024).toFixed(1)}KB)`; }
+      if(infoDiv) infoDiv.style.display='block';
+      if(previewDiv){
+        let preview=`Backup Date: ${data.meta?.backup_date||'Unknown'}<br>Version: ${data.meta?.version||'Unknown'}<br><br>`;
+        preview+=`Categories: ${data.product_category?.length||0} | Products: ${data.product?.length||0}<br>SBUs: ${data.sbu?.length||0} | Vendors: ${data.vendor?.length||0}<br>Customers: ${data.customer?.length||0} | POs: ${data.po?.length||0}<br>GRNs: ${data.grn?.length||0}`;
+        previewDiv.innerHTML=preview;
+      }
+      if(summaryEl) summaryEl.innerHTML=`File: ${file.name}<br>Size: ${(file.size/1024).toFixed(1)}KB<br>Tables: ${Object.keys(data).length} | Ready`;
+      if(uploadSection) uploadSection.style.display='block';
+      if(clearBtn) clearBtn.style.display='inline-block';
+      if(document.getElementById('dz_backup_file')){ document.getElementById('dz_backup_file').style.borderColor='#1A2E1E'; document.getElementById('dz_backup_file').style.background='#F6FFF6'; }
+    }catch(err){ alert(`❌ Invalid backup file: ${err.message}`); }
+  };
+  reader.readAsText(file);
+}
+function clearBackupFile(e){
+  if(e){ e.preventDefault(); e.stopPropagation(); }
+  if(document.getElementById('backup_file_content')) document.getElementById('backup_file_content').value='';
+  let fileIn=document.getElementById('file_backup'); if(fileIn) fileIn.value='';
+  let fileDiv=document.getElementById('dz_file_backup'); if(fileDiv) fileDiv.style.display='none';
+  let infoDiv=document.getElementById('backup_file_info'); if(infoDiv) infoDiv.style.display='none';
+  let uploadSection=document.getElementById('backup_upload_section'); if(uploadSection) uploadSection.style.display='none';
+  let resultDiv=document.getElementById('backup_upload_result'); if(resultDiv) resultDiv.style.display='none';
+  let clearBtn=document.getElementById('dz_clear_backup'); if(clearBtn) clearBtn.style.display='none';
+  let zone=document.getElementById('dz_backup_file'); if(zone){ zone.style.borderColor=''; zone.style.background=''; zone.classList.remove('dragover'); }
+}
+async function uploadBackupData(){
+  try{
+    let content=document.getElementById('backup_file_content')?.value||'';
+    if(!content){ alert('⚠️ No file selected - Drag & drop JSON first'); return; }
+    let resultDiv=document.getElementById('backup_upload_result');
+    if(resultDiv){ resultDiv.style.display='block'; resultDiv.innerHTML='⏳ Uploading backup data into database tables...'; resultDiv.style.background='#FFFBEB'; }
+    let res=await fetch('/api/backup/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:content});
+    let j=await res.json();
+    console.log('Upload result', j);
+    if(res.ok){
+      if(resultDiv){ resultDiv.innerHTML=`✅ Uploaded!<br>${Object.entries(j.restored||{}).map(([k,v])=>`${k}: ${v} new`).join('<br>')}<br>${j.message||''}`; resultDiv.style.background='#E6F4EA'; }
+      loadBackupInfo(); loadCategories(); loadProducts(); loadVendors(); loadPOs();
+    } else {
+      if(resultDiv){ resultDiv.innerHTML=`❌ Upload failed: ${j.error||'Unknown'}`; resultDiv.style.background='#FCE8E6'; }
+    }
+  }catch(err){
+    console.error('upload error', err);
+    let resultDiv=document.getElementById('backup_upload_result');
+    if(resultDiv){ resultDiv.style.display='block'; resultDiv.innerHTML=`❌ Error: ${err.message}`; resultDiv.style.background='#FCE8E6'; }
+  }
+}
 
 async function loadDash(){ let r=await fetch('/api/inventory/combined'); let d=await r.json(); document.getElementById('totalVal').innerText='Rs '+(d.total_value_lakh||0).toFixed(2)+' Lakh'; let rc=await fetch('/api/product_categories'); let cats=await rc.json(); document.getElementById('catCountDash').innerText=cats.length; let rp=await fetch('/api/products'); let prods=await rp.json(); document.getElementById('prodCountDash').innerText=prods.length; let rs=await fetch('/api/sbus'); let sbus=await rs.json(); document.getElementById('sbuCountDash').innerText=sbus.length;}
 async function loadStock(){ let r=await fetch('/api/inventory/combined'); let d=await r.json(); document.getElementById('rawTbl').innerHTML='<h4>Raw</h4><table><tr><th>Code</th><th>Name</th><th>MT</th></tr>'+d.raw.map(x=>`<tr><td>${x.product_code}</td><td>${x.name}</td><td>${x.total_mt}</td></tr>`).join('')+'</table>'; document.getElementById('finTbl').innerHTML='<h4>Finished</h4><table><tr><th>Code</th><th>Name</th><th>MT</th></tr>'+d.finished.map(x=>`<tr><td>${x.product_code}</td><td>${x.name}</td><td>${x.total_mt}</td></tr>`).join('')+'</table>';}
