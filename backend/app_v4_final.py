@@ -359,6 +359,39 @@ def generate_product_code(category, count):
 def generate_vendor_code(count):
     return f"VEND-{count:04d}"
 
+def sanitize_product_name_for_po(name):
+    import re
+    try:
+        name=(name or '').strip()
+        name=name.replace(' ', '').replace('"','').replace("'",'').replace('&','').replace('/','')
+        name=re.sub(r'[^A-Za-z0-9\-_]', '', name)
+        result=name.upper()[:30]
+        return result if result and len(result)>=2 else "PRODUCT"
+    except Exception as e:
+        print(f"sanitize error {e}")
+        return "PRODUCT"
+
+def get_financial_year(date_str=None):
+    from datetime import datetime
+    if date_str:
+        try:
+            d=datetime.strptime(date_str, '%Y-%m-%d')
+        except:
+            d=datetime.now()
+    else:
+        d=datetime.now()
+    if d.month>=4:
+        fy_start=d.year
+        fy_end=d.year+1
+    else:
+        fy_start=d.year-1
+        fy_end=d.year
+    return f"{str(fy_start)[-2:]}-{str(fy_end)[-2:]}"
+
+def generate_po_no(fy, product_name, count):
+    base=sanitize_product_name_for_po(product_name)
+    return f"PO/{fy}/{base}/{count:04d}"
+
 # ========== API ==========
 @app.route('/api/health')
 def health():
@@ -785,13 +818,11 @@ def po_api():
         if not vendor: return jsonify(error=f'Vendor not found ID {vendor_id}'),400
         items=data.get('items') or []
         if not items or len(items)==0: return jsonify(error='Add at least one line item - Click Add Line Item'),400
-        # Validate items have product, qty, rate
         for idx, it in enumerate(items):
             if not it.get('product_id') and not it.get('product_name'):
-                return jsonify(error=f'Line {idx+1}: Product mandatory - Select product'),400
+                return jsonify(error=f'Line {idx+1}: Product mandatory'),400
             try:
-                q=float(it.get('qty') or 0)
-                r=float(it.get('rate') or 0)
+                q=float(it.get('qty') or 0); r=float(it.get('rate') or 0)
             except:
                 return jsonify(error=f'Line {idx+1}: Qty/Rate must be numbers'),400
             if q<=0 or r<=0:
@@ -892,6 +923,7 @@ def po_api():
         db.session.rollback()
         print(f"❌ PO POST Error: {e}")
         return jsonify(error=f'Server error saving PO: {str(e)}'),500
+
 
 @app.route('/api/po/<int:pid>', methods=['GET','PUT','DELETE'])
 def po_one(pid):
@@ -2373,7 +2405,7 @@ async function savePO(){
       console.error('Payload:', payload);
       if(text.trim().startsWith('<!') || text.toLowerCase().includes('<!doctype')){
         let clean=text.replace(/<[^>]*>/g,' ').trim().substring(0,600);
-        alert(`❌ Server Error 500 - Backend crashed\nStatus: ${res.status}\nError: ${clean}\nCheck Render logs https://dashboard.render.com\n\nThis usually means PO table migration missing or product_id null FK error`);
+        alert(`❌ Server Error 500 - Backend crashed\nStatus: ${res.status}\nError: ${clean}\nCheck Render logs https://dashboard.render.com`);
       } else {
         alert(`❌ Invalid JSON - Status ${res.status}\n${text.substring(0,500)}`);
       }
