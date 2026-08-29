@@ -264,14 +264,94 @@ class PO(db.Model):
 class GRN(db.Model):
     __tablename__ = 'grn'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    # GRN Header v4.6
+    grn_no = db.Column(db.String(100), unique=True)
+    grn_date = db.Column(db.String(20), default=lambda: datetime.now().strftime('%Y-%m-%d'))
+    grn_type = db.Column(db.String(50), default='Against PO')
+    # PO Link
+    po_id = db.Column(db.Integer, db.ForeignKey('po.id'), nullable=True)
+    po_no = db.Column(db.String(100), default='')
+    # SBU & Vendor
+    sbu_id = db.Column(db.Integer, db.ForeignKey('sbu.id'), nullable=True)
+    sbu_name = db.Column(db.String(100), default='')
+    sbu_code = db.Column(db.String(20), default='')
+    vendor_id = db.Column(db.Integer, db.ForeignKey('vendor.id'), nullable=True)
+    vendor = db.Column(db.String(100))
+    vendor_code = db.Column(db.String(50), default='')
+    vendor_state = db.Column(db.String(100), default='')
+    station = db.Column(db.String(100), default='')
+    # Vehicle & Transport - v4.6
     vehicle_no = db.Column(db.String(100))
+    driver_name = db.Column(db.String(100), default='')
+    driver_mobile = db.Column(db.String(20), default='')
+    transporter = db.Column(db.String(100), default='')
+    lr_no = db.Column(db.String(100), default='')
+    eway_bill = db.Column(db.String(100), default='')
+    # Invoice & Challan
+    invoice_no = db.Column(db.String(100), default='')
+    invoice_date = db.Column(db.String(20), default='')
+    challan_no = db.Column(db.String(100), default='')
+    bill_no = db.Column(db.String(100), default='')
+    rawana_no = db.Column(db.String(100), default='')
+    wayment_slip_no = db.Column(db.String(100), default='')
+    # Material
     material = db.Column(db.String(100))
-    unit = db.Column(db.String(100))
+    product_id = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=True)
+    product_name = db.Column(db.String(100), default='')
+    product_code = db.Column(db.String(50), default='')
+    hsn_code = db.Column(db.String(20), default='')
+    spec = db.Column(db.Text, default='')
+    unit = db.Column(db.String(100), default='MT')
+    # Qty - v4.6 optimized
+    po_qty = db.Column(db.Float, default=0)
+    supplier_qty = db.Column(db.Float, default=0)
+    received_qty = db.Column(db.Float, default=0)
+    accepted_qty = db.Column(db.Float, default=0)
+    rejected_qty = db.Column(db.Float, default=0)
+    wastage_kg = db.Column(db.Float, default=0)
+    rate = db.Column(db.Float, default=0)
+    amount = db.Column(db.Float, default=0)
+    # Tax & Totals
+    taxable_value = db.Column(db.Float, default=0)
+    cgst_percent = db.Column(db.Float, default=0)
+    cgst_amount = db.Column(db.Float, default=0)
+    sgst_percent = db.Column(db.Float, default=0)
+    sgst_amount = db.Column(db.Float, default=0)
+    igst_percent = db.Column(db.Float, default=0)
+    igst_amount = db.Column(db.Float, default=0)
+    grand_total = db.Column(db.Float, default=0)
+    # Weighment
     gross_kg = db.Column(db.Float, default=0)
     tare_kg = db.Column(db.Float, default=0)
-    vendor = db.Column(db.String(100))
-    vendor_id = db.Column(db.Integer, db.ForeignKey('vendor.id'), nullable=True)
     net_kg = db.Column(db.Float, default=0)
+    net_mt = db.Column(db.Float, default=0)
+    qty_differ = db.Column(db.Float, default=0)
+    differ_percent = db.Column(db.Float, default=0)
+    # Freight & Charges - from your sheet
+    bilty_rate = db.Column(db.Float, default=0)
+    bilty_amount = db.Column(db.Float, default=0)
+    freight_advance = db.Column(db.Float, default=0)
+    unloading_point = db.Column(db.String(100), default='')
+    unloading_charges = db.Column(db.Float, default=0)
+    stock_yard_id = db.Column(db.Integer, default=0)
+    stock_yard_name = db.Column(db.String(100), default='')
+    # Quality & Deductions
+    moisture_percent = db.Column(db.Float, default=0)
+    quality_status = db.Column(db.String(20), default='OK')
+    quality_remark = db.Column(db.Text, default='OK')
+    deduction_amount = db.Column(db.Float, default=0)
+    shortage_ded = db.Column(db.Float, default=0)
+    rate_difference = db.Column(db.Float, default=0)
+    debit_note_no = db.Column(db.String(100), default='')
+    remarks = db.Column(db.Text, default='')
+    # Docs & Status
+    documents = db.Column(db.Text, default='{}')
+    status = db.Column(db.String(50), default='Approved')
+    approval_status = db.Column(db.String(50), default='Approved')
+    created_by = db.Column(db.String(100), default='Admin')
+    created_at = db.Column(db.String(30), default=lambda: datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    updated_by = db.Column(db.String(100), default='Admin')
+    updated_at = db.Column(db.String(30), default=lambda: datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
 class Dispatch(db.Model):
     __tablename__ = 'dispatch'
@@ -296,6 +376,52 @@ class QRBag(db.Model):
 
 with app.app_context():
     db.create_all()
+    # ========== V1 DEFAULT MASTERS SEEDING - 3 CATEGORIES + 18 PRODUCTS - From Screenshots v4.4.6 ==========
+    try:
+        default_categories = ["Packeging Materials", "Finished Products", "Raw Materials"]
+        existing_cats = [c.category_name for c in ProductCategory.query.all()]
+        if len(existing_cats) < 3:
+            for cat_name in default_categories:
+                if cat_name not in existing_cats:
+                    db.session.add(ProductCategory(category_name=cat_name))
+            db.session.commit()
+            print("V1 Seeded Product Categories:", default_categories)
+        
+        if Product.query.count() == 0:
+            default_products = [
+                {"product_code": "FINI-0018", "name": "Hydrate Lime 75%", "category": "Finished Products", "hsn_code": "25222000", "description": "hydrate from waste"},
+                {"product_code": "FINI-0017", "name": "Silica", "category": "Finished Products", "hsn_code": "25222000", "description": "waste of Hydrate plant"},
+                {"product_code": "FINI-0016", "name": "Hydrate Lime 80%", "category": "Finished Products", "hsn_code": "25222000", "description": "Pulviser material from calsined lime"},
+                {"product_code": "FINI-0015", "name": "Hydrate Lime 90%", "category": "Finished Products", "hsn_code": "25222000", "description": "Classifier from quick Lime"},
+                {"product_code": "FINI-0014", "name": "Quick Lime Powder 200 mesh", "category": "Finished Products", "hsn_code": "25222000", "description": "fghj"},
+                {"product_code": "FINI-0013", "name": "Quick Lime Fines 0-3 mm", "category": "Finished Products", "hsn_code": "25222000", "description": "sinter fines"},
+                {"product_code": "FINI-0012", "name": "Quick Lime Lumps 10-60 mm", "category": "Finished Products", "hsn_code": "25222000", "description": "dfgh"},
+                {"product_code": "FINI-0011", "name": "Quick Lime Lumps 40-60 mm", "category": "Finished Products", "hsn_code": "25222000", "description": "dfg"},
+                {"product_code": "FINI-0010", "name": "Quick Lime Lumps 10-40 mm", "category": "Finished Products", "hsn_code": "25221000", "description": "sizing plant processed"},
+                {"product_code": "FINI-0009", "name": "Gulli", "category": "Finished Products", "hsn_code": "25221000", "description": "Unburnt and over burnt"},
+                {"product_code": "FINI-0008", "name": "Chunna", "category": "Finished Products", "hsn_code": "25221000", "description": "Waste Klin Powder"},
+                {"product_code": "FINI-0007", "name": "Quick Lime", "category": "Finished Products", "hsn_code": "25221000", "description": "From Klins"},
+                {"product_code": "PACK-0006", "name": "Jumbo Bags 48\"", "category": "Packeging Materials", "hsn_code": "1000000", "description": "fghj"},
+                {"product_code": "PACK-0005", "name": "Hydrate Lime Valve Bags", "category": "Packeging Materials", "hsn_code": "1000000", "description": "fds"},
+                {"product_code": "PACK-0004", "name": "Repol 1st", "category": "Packeging Materials", "hsn_code": "1000000", "description": "f"},
+                {"product_code": "PACK-0003", "name": "Jumbo Bags 52\"", "category": "Packeging Materials", "hsn_code": "1000000", "description": "dd"},
+                {"product_code": "RAWM-0002", "name": "Pet Coke", "category": "Raw Materials", "hsn_code": "18000000", "description": "dd"},
+                {"product_code": "RAWM-0001", "name": "Lime Stone", "category": "Raw Materials", "hsn_code": "25221000", "description": "fff"},
+            ]
+            for prod in default_products:
+                if not Product.query.filter_by(product_code=prod["product_code"]).first():
+                    db.session.add(Product(
+                        name=prod["name"], category=prod["category"], product_code=prod["product_code"],
+                        hsn_code=prod["hsn_code"], description=prod["description"],
+                        loose_stock_mt=0, jumbo_mt=0, hdpe_40kg_mt=0, total_stock_mt=0,
+                        min_stock=0, reorder_level=0, sale_price=0, purchase_price=0, location=""
+                    ))
+            db.session.commit()
+            print(f"V1 Seeded {len(default_products)} Products from screenshots")
+    except Exception as e:
+        print(f"V1 Seeding failed: {e}")
+        db.session.rollback()
+
     # v4.5 Fix: Safe migration for PO table - if old schema exists, add missing columns
     try:
         from sqlalchemy import inspect, text
@@ -324,6 +450,42 @@ with app.app_context():
                         pass
     except Exception as e:
         print(f"v4.5 Migration check failed: {e}")
+
+    # ========== v4.6 GRN Module Migration - Safe migration for GRN table ==========
+    try:
+        from sqlalchemy import inspect, text
+        inspector=inspect(db.engine)
+        if 'grn' in inspector.get_table_names():
+            cols=[c['name'] for c in inspector.get_columns('grn')]
+            missing=[]
+            for col_name, col_type in [
+                ('grn_no','VARCHAR(100)'),('grn_date','VARCHAR(20)'),('grn_type','VARCHAR(50)'),
+                ('po_id','INTEGER'),('po_no','VARCHAR(100)'),
+                ('sbu_id','INTEGER'),('sbu_name','VARCHAR(100)'),('sbu_code','VARCHAR(20)'),
+                ('vendor_code','VARCHAR(50)'),('vendor_state','VARCHAR(100)'),('station','VARCHAR(100)'),
+                ('driver_name','VARCHAR(100)'),('driver_mobile','VARCHAR(20)'),('transporter','VARCHAR(100)'),('lr_no','VARCHAR(100)'),('eway_bill','VARCHAR(100)'),
+                ('invoice_no','VARCHAR(100)'),('invoice_date','VARCHAR(20)'),('challan_no','VARCHAR(100)'),('bill_no','VARCHAR(100)'),('rawana_no','VARCHAR(100)'),('wayment_slip_no','VARCHAR(100)'),
+                ('product_id','INTEGER'),('product_name','VARCHAR(100)'),('product_code','VARCHAR(50)'),('hsn_code','VARCHAR(20)'),('spec','TEXT'),
+                ('po_qty','FLOAT'),('supplier_qty','FLOAT'),('received_qty','FLOAT'),('accepted_qty','FLOAT'),('rejected_qty','FLOAT'),('wastage_kg','FLOAT'),('rate','FLOAT'),('amount','FLOAT'),
+                ('taxable_value','FLOAT'),('cgst_percent','FLOAT'),('cgst_amount','FLOAT'),('sgst_percent','FLOAT'),('sgst_amount','FLOAT'),('igst_percent','FLOAT'),('igst_amount','FLOAT'),('grand_total','FLOAT'),
+                ('net_mt','FLOAT'),('qty_differ','FLOAT'),('differ_percent','FLOAT'),
+                ('bilty_rate','FLOAT'),('bilty_amount','FLOAT'),('freight_advance','FLOAT'),('unloading_point','VARCHAR(100)'),('unloading_charges','FLOAT'),('stock_yard_id','INTEGER'),('stock_yard_name','VARCHAR(100)'),
+                ('moisture_percent','FLOAT'),('quality_status','VARCHAR(20)'),('quality_remark','TEXT'),('deduction_amount','FLOAT'),('shortage_ded','FLOAT'),('rate_difference','FLOAT'),('debit_note_no','VARCHAR(100)'),('remarks','TEXT'),
+                ('documents','TEXT'),('status','VARCHAR(50)'),('approval_status','VARCHAR(50)'),('created_by','VARCHAR(100)'),('created_at','VARCHAR(30)'),('updated_by','VARCHAR(100)'),('updated_at','VARCHAR(30)')
+            ]:
+                if col_name not in cols:
+                    missing.append((col_name,col_type))
+            if missing:
+                print(f"v4.6 GRN Migration: Adding {len(missing)} missing columns to GRN table")
+                with db.engine.connect() as conn:
+                    for col_name, col_type in missing:
+                        try:
+                            conn.execute(text(f"ALTER TABLE grn ADD COLUMN {col_name} {col_type}"))
+                            conn.commit()
+                        except Exception as ex:
+                            print(f"Failed to add GRN column {col_name}: {ex}")
+    except Exception as e:
+        print(f"v4.6 GRN Migration check failed: {e}")
     # Seed hidden masters if empty
     if LegalStatusMaster.query.count()==0:
         for name in ["Proprietor","Partnership","LLP","Private Limited","Public Limited","HUF","Trust","Society","Government","OPC","One Person Company","Co-operative Society","Others"]:
@@ -392,10 +554,37 @@ def generate_po_no(fy, product_name, count):
     base=sanitize_product_name_for_po(product_name)
     return f"PO/{fy}/{base}/{count:04d}"
 
+def sanitize_sbu_code(sbu_name):
+    import re
+    try:
+        name=(sbu_name or '').strip().upper()
+        # Take first 3-4 chars of first word, or initials
+        words=name.split()
+        if len(words)>=2:
+            # RLP Borunda -> RLP, RN Plant -> RNPL, Tukdi Plant -> TUKDI
+            if len(words[0])<=4:
+                code=words[0]
+            else:
+                code=''.join([w[0] for w in words])[:4]
+        else:
+            code=name[:4]
+        code=re.sub(r'[^A-Z0-9]', '', code)
+        return code[:6] if code else "SBU"
+    except:
+        return "SBU"
+
+def generate_grn_no(fy, sbu_code, count):
+    sbu_code=sanitize_sbu_code(sbu_code) if sbu_code else "SBU"
+    return f"GRN/{fy}/{sbu_code}/{count:04d}"
+
+def generate_grn_no_with_material(fy, sbu_code, material, count):
+    sbu_code=sanitize_sbu_code(sbu_code) if sbu_code else "SBU"
+    return f"GRN/{fy}/{sbu_code}/{count:04d}"
+
 # ========== API ==========
 @app.route('/api/health')
 def health():
-    return jsonify(status='LIVE', version='v4.4.9 Vendor Master Enhanced', db_file='lemon_erp_v44_1_category.db', url='https://lemon-erp.onrender.com')
+    return jsonify(status='LIVE', version='v4.5.2 PO Module Locked + Backup v4.5.1 + Product Master 3 Cat 18 Prod', db_file='lemon_erp_v44_1_category.db', url='https://lemon-erp.onrender.com')
 
 @app.route('/api/product_categories', methods=['GET','POST'])
 def pc_list():
@@ -1393,8 +1582,382 @@ def backup_upload():
 
 @app.route('/api/grn', methods=['GET','POST'])
 def grn_api():
-    if request.method=='GET': return jsonify([{'id':g.id,'vehicle_no':g.vehicle_no,'material':g.material,'vendor':g.vendor} for g in GRN.query.order_by(GRN.id.desc()).all()])
-    return jsonify(ok=True)
+    if request.method=='GET':
+        search=(request.args.get('search') or '').strip().lower()
+        grn_type=request.args.get('grn_type','')
+        status_f=request.args.get('status','')
+        sbu_f=request.args.get('sbu','')
+        vendor_f=request.args.get('vendor','')
+        station_f=request.args.get('station','')
+        material_f=request.args.get('material','')
+        vehicle_f=request.args.get('vehicle','')
+        date_from=request.args.get('date_from','')
+        date_to=request.args.get('date_to','')
+        grns=GRN.query.order_by(GRN.id.desc()).all()
+        result=[]
+        for g in grns:
+            try:
+                docs=json.loads(g.documents) if g.documents else {}
+            except:
+                docs={}
+            if search and not (search in (g.grn_no or '').lower() or search in (g.vehicle_no or '').lower() or search in (g.vendor or '').lower() or search in (g.po_no or '').lower() or search in (g.product_name or '').lower() or search in (g.material or '').lower() or search in (g.sbu_name or '').lower() or search in (g.wayment_slip_no or '').lower()):
+                continue
+            if grn_type and g.grn_type!=grn_type: continue
+            if status_f and g.status!=status_f: continue
+            if sbu_f and str(g.sbu_id)!=str(sbu_f) and g.sbu_name!=sbu_f: continue
+            if vendor_f and str(g.vendor_id)!=str(vendor_f): continue
+            if station_f and station_f.lower() not in (g.station or '').lower(): continue
+            if material_f and material_f.lower() not in (g.product_name or '').lower() and material_f.lower() not in (g.material or '').lower(): continue
+            if vehicle_f and vehicle_f.lower() not in (g.vehicle_no or '').lower(): continue
+            if date_from and g.grn_date < date_from: continue
+            if date_to and g.grn_date > date_to: continue
+            result.append({
+                'id':g.id,'grn_no':g.grn_no,'grn_date':g.grn_date,'grn_type':g.grn_type,
+                'po_id':g.po_id,'po_no':g.po_no,
+                'sbu_id':g.sbu_id,'sbu_name':g.sbu_name,'sbu_code':g.sbu_code,
+                'vendor_id':g.vendor_id,'vendor':g.vendor,'vendor_code':g.vendor_code,'vendor_state':g.vendor_state,'station':g.station,
+                'vehicle_no':g.vehicle_no,'driver_name':g.driver_name,'driver_mobile':g.driver_mobile,'transporter':g.transporter,'lr_no':g.lr_no,'eway_bill':g.eway_bill,
+                'invoice_no':g.invoice_no,'invoice_date':g.invoice_date,'challan_no':g.challan_no,'bill_no':g.bill_no,'rawana_no':g.rawana_no,'wayment_slip_no':g.wayment_slip_no,
+                'product_id':g.product_id,'product_name':g.product_name,'product_code':g.product_code,'hsn_code':g.hsn_code,'spec':g.spec,'unit':g.unit,'material':g.material,
+                'po_qty':g.po_qty,'supplier_qty':g.supplier_qty,'received_qty':g.received_qty,'accepted_qty':g.accepted_qty,'rejected_qty':g.rejected_qty,'wastage_kg':g.wastage_kg,
+                'rate':g.rate,'amount':g.amount,'taxable_value':g.taxable_value,'cgst_percent':g.cgst_percent,'cgst_amount':g.cgst_amount,'sgst_percent':g.sgst_percent,'sgst_amount':g.sgst_amount,'igst_percent':g.igst_percent,'igst_amount':g.igst_amount,'grand_total':g.grand_total,
+                'gross_kg':g.gross_kg,'tare_kg':g.tare_kg,'net_kg':g.net_kg,'net_mt':g.net_mt,'qty_differ':g.qty_differ,'differ_percent':g.differ_percent,
+                'bilty_rate':g.bilty_rate,'bilty_amount':g.bilty_amount,'freight_advance':g.freight_advance,'unloading_point':g.unloading_point,'unloading_charges':g.unloading_charges,'stock_yard_id':g.stock_yard_id,'stock_yard_name':g.stock_yard_name,
+                'moisture_percent':g.moisture_percent,'quality_status':g.quality_status,'quality_remark':g.quality_remark,'deduction_amount':g.deduction_amount,'shortage_ded':g.shortage_ded,'rate_difference':g.rate_difference,'debit_note_no':g.debit_note_no,'remarks':g.remarks,
+                'documents':docs,'has_docs':len([v for v in docs.values() if v])>0,
+                'status':g.status,'approval_status':g.approval_status,
+                'created_by':g.created_by,'created_at':g.created_at,'updated_by':g.updated_by,'updated_at':g.updated_at
+            })
+        return jsonify(result)
+    try:
+        data=request.get_json() or {}
+        grn_type=data.get('grn_type','Against PO')
+        grn_date=data.get('grn_date') or datetime.now().strftime('%Y-%m-%d')
+        fy=get_financial_year(grn_date)
+        # SBU
+        sbu_id=data.get('sbu_id')
+        sbu_name=''
+        sbu_code='SBU'
+        if sbu_id:
+            sbu=SBU.query.get(sbu_id)
+            if sbu:
+                sbu_name=sbu.sbu_name
+                sbu_code=sanitize_sbu_code(sbu.sbu_name)
+        else:
+            sbu_name=data.get('sbu_name','')
+            sbu_code=sanitize_sbu_code(sbu_name) if sbu_name else 'SBU'
+        # Generate GRN No with SBU Code
+        existing_count=GRN.query.filter(GRN.grn_no.like(f"GRN/{fy}/{sbu_code}/%")).count()+1
+        grn_no=data.get('grn_no') or generate_grn_no(fy, sbu_code, existing_count)
+        while GRN.query.filter_by(grn_no=grn_no).first():
+            existing_count+=1
+            grn_no=generate_grn_no(fy, sbu_code, existing_count)
+        # Vendor
+        vendor_id=data.get('vendor_id')
+        vendor_name=data.get('vendor','')
+        vendor_code=''
+        vendor_state=''
+        station=data.get('station','')
+        if vendor_id:
+            v=Vendor.query.get(vendor_id)
+            if v:
+                vendor_name=v.name
+                vendor_code=v.vendor_code or ''
+                vendor_state=v.state or ''
+                station=data.get('station') or v.station or ''
+        # PO
+        po_id=data.get('po_id')
+        po_no=data.get('po_no','')
+        po_qty=0
+        rate=float(data.get('rate') or 0)
+        if po_id:
+            po=PO.query.get(po_id)
+            if po:
+                po_no=po.po_no
+                # Try get rate and product from PO items
+                try:
+                    items=json.loads(po.items) if po.items else []
+                    if items:
+                        # Find matching product
+                        prod_id=data.get('product_id')
+                        matched=None
+                        for it in items:
+                            if prod_id and str(it.get('product_id'))==str(prod_id):
+                                matched=it
+                                break
+                        if not matched:
+                            matched=items[0]
+                        if matched:
+                            po_qty=float(matched.get('qty') or 0)
+                            if not data.get('rate'):
+                                rate=float(matched.get('rate') or rate)
+                except:
+                    pass
+        # Product
+        product_id=data.get('product_id')
+        product_name=data.get('product_name','')
+        product_code=data.get('product_code','')
+        hsn_code=data.get('hsn_code','')
+        if product_id:
+            prod=Product.query.get(product_id)
+            if prod:
+                product_name=prod.name
+                product_code=prod.product_code
+                hsn_code=prod.hsn_code
+        # Qty calculations
+        supplier_qty=float(data.get('supplier_qty') or data.get('received_qty') or 0)
+        gross_kg=float(data.get('gross_kg') or 0)
+        tare_kg=float(data.get('tare_kg') or 0)
+        net_kg=gross_kg - tare_kg if gross_kg and tare_kg else float(data.get('net_kg') or 0)
+        net_mt=round(net_kg/1000,3) if net_kg else float(data.get('net_mt') or 0)
+        received_qty=float(data.get('received_qty') or net_mt or supplier_qty or 0)
+        accepted_qty=float(data.get('accepted_qty') or received_qty or 0)
+        rejected_qty=float(data.get('rejected_qty') or 0)
+        if not data.get('accepted_qty') and received_qty:
+            accepted_qty=received_qty - rejected_qty
+        wastage_kg=float(data.get('wastage_kg') or 0)
+        # Differ
+        qty_differ=round(supplier_qty - received_qty,3) if supplier_qty and received_qty else float(data.get('qty_differ') or 0)
+        differ_percent=round((qty_differ/supplier_qty*100),3) if supplier_qty and qty_differ else float(data.get('differ_percent') or 0)
+        # Tax calculations
+        taxable_value=round(accepted_qty * rate,2) if accepted_qty and rate else float(data.get('taxable_value') or 0)
+        cgst_percent=float(data.get('cgst_percent') or 0)
+        sgst_percent=float(data.get('sgst_percent') or 0)
+        igst_percent=float(data.get('igst_percent') or 0)
+        # Auto GST based on vendor state vs SBU? For now use igst if provided, else cgst+sgst
+        cgst_amount=0
+        sgst_amount=0
+        igst_amount=0
+        if igst_percent:
+            igst_amount=round(taxable_value * igst_percent/100,2)
+        else:
+            if cgst_percent:
+                cgst_amount=round(taxable_value * cgst_percent/100,2)
+            if sgst_percent:
+                sgst_amount=round(taxable_value * sgst_percent/100,2)
+        grand_total=round(taxable_value + cgst_amount + sgst_amount + igst_amount,2)
+        if data.get('grand_total'):
+            grand_total=float(data.get('grand_total'))
+        # Create GRN
+        grn=GRN(
+            grn_no=grn_no,
+            grn_date=grn_date,
+            grn_type=grn_type,
+            po_id=po_id,
+            po_no=po_no,
+            sbu_id=sbu_id,
+            sbu_name=sbu_name,
+            sbu_code=sbu_code,
+            vendor_id=vendor_id,
+            vendor=vendor_name,
+            vendor_code=vendor_code,
+            vendor_state=vendor_state,
+            station=station,
+            vehicle_no=data.get('vehicle_no',''),
+            driver_name=data.get('driver_name',''),
+            driver_mobile=data.get('driver_mobile',''),
+            transporter=data.get('transporter',''),
+            lr_no=data.get('lr_no',''),
+            eway_bill=data.get('eway_bill',''),
+            invoice_no=data.get('invoice_no',''),
+            invoice_date=data.get('invoice_date',''),
+            challan_no=data.get('challan_no',''),
+            bill_no=data.get('bill_no',''),
+            rawana_no=data.get('rawana_no',''),
+            wayment_slip_no=data.get('wayment_slip_no',''),
+            material=data.get('material') or product_name,
+            product_id=product_id,
+            product_name=product_name,
+            product_code=product_code,
+            hsn_code=hsn_code,
+            spec=data.get('spec',''),
+            unit=data.get('unit','MT'),
+            po_qty=po_qty,
+            supplier_qty=supplier_qty,
+            received_qty=received_qty,
+            accepted_qty=accepted_qty,
+            rejected_qty=rejected_qty,
+            wastage_kg=wastage_kg,
+            rate=rate,
+            amount=round(received_qty*rate,2),
+            taxable_value=taxable_value,
+            cgst_percent=cgst_percent,
+            cgst_amount=cgst_amount,
+            sgst_percent=sgst_percent,
+            sgst_amount=sgst_amount,
+            igst_percent=igst_percent,
+            igst_amount=igst_amount,
+            grand_total=grand_total,
+            gross_kg=gross_kg,
+            tare_kg=tare_kg,
+            net_kg=net_kg,
+            net_mt=net_mt,
+            qty_differ=qty_differ,
+            differ_percent=differ_percent,
+            bilty_rate=float(data.get('bilty_rate') or 0),
+            bilty_amount=float(data.get('bilty_amount') or 0),
+            freight_advance=float(data.get('freight_advance') or 0),
+            unloading_point=data.get('unloading_point',''),
+            unloading_charges=float(data.get('unloading_charges') or 0),
+            stock_yard_id=int(data.get('stock_yard_id') or 0),
+            stock_yard_name=data.get('stock_yard_name',''),
+            moisture_percent=float(data.get('moisture_percent') or 0),
+            quality_status=data.get('quality_status','OK'),
+            quality_remark=data.get('quality_remark','OK'),
+            deduction_amount=float(data.get('deduction_amount') or 0),
+            shortage_ded=float(data.get('shortage_ded') or 0),
+            rate_difference=float(data.get('rate_difference') or 0),
+            debit_note_no=data.get('debit_note_no',''),
+            remarks=data.get('remarks',''),
+            documents=json.dumps(data.get('documents',{})),
+            status='Approved',
+            approval_status='Approved',
+            created_by=data.get('created_by','Admin')
+        )
+        db.session.add(grn)
+        db.session.commit()
+        # Auto add to Product stock and SBU Stock Yard
+        try:
+            if product_id and accepted_qty:
+                prod=Product.query.get(product_id)
+                if prod:
+                    prod.total_stock_mt=(prod.total_stock_mt or 0) + accepted_qty
+                    db.session.commit()
+            # Add to SBU Stock Yard if yard selected
+            if sbu_id and data.get('stock_yard_id') and accepted_qty:
+                yard_id=int(data.get('stock_yard_id'))
+                # Find yard
+                yard=StockYardAsset.query.get(yard_id)
+                if yard and yard.sbu_id==int(sbu_id):
+                    try:
+                        items=json.loads(yard.yard_items) if yard.yard_items else []
+                    except:
+                        items=[]
+                    # Find product in yard items
+                    found=False
+                    for it in items:
+                        if str(it.get('product_id'))==str(product_id):
+                            it['opening_stock']=float(it.get('opening_stock') or 0) + accepted_qty
+                            found=True
+                            break
+                    if not found:
+                        items.append({'product_id':product_id,'product_name':product_name,'product_code':product_code,'opening_stock':accepted_qty})
+                    yard.yard_items=json.dumps(items)
+                    db.session.commit()
+        except Exception as e:
+            print(f"Stock update failed for GRN {grn_no}: {e}")
+        print(f"✅ GRN Created: {grn.grn_no} Accepted {accepted_qty} MT - Stock updated")
+        return jsonify(id=grn.id, grn_no=grn.grn_no, net_mt=grn.net_mt, accepted_qty=grn.accepted_qty)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        db.session.rollback()
+        print(f"❌ GRN POST Error: {e}")
+        return jsonify(error=f'Server error saving GRN: {str(e)}'),500
+
+@app.route('/api/grn/<int:gid>', methods=['GET','PUT','DELETE'])
+def grn_one(gid):
+    g=GRN.query.get_or_404(gid)
+    if request.method=='GET':
+        try:
+            docs=json.loads(g.documents) if g.documents else {}
+        except:
+            docs={}
+        return jsonify(
+            id=g.id,grn_no=g.grn_no,grn_date=g.grn_date,grn_type=g.grn_type,
+            po_id=g.po_id,po_no=g.po_no,
+            sbu_id=g.sbu_id,sbu_name=g.sbu_name,sbu_code=g.sbu_code,
+            vendor_id=g.vendor_id,vendor=g.vendor,vendor_code=g.vendor_code,vendor_state=g.vendor_state,station=g.station,
+            vehicle_no=g.vehicle_no,driver_name=g.driver_name,driver_mobile=g.driver_mobile,transporter=g.transporter,lr_no=g.lr_no,eway_bill=g.eway_bill,
+            invoice_no=g.invoice_no,invoice_date=g.invoice_date,challan_no=g.challan_no,bill_no=g.bill_no,rawana_no=g.rawana_no,wayment_slip_no=g.wayment_slip_no,
+            product_id=g.product_id,product_name=g.product_name,product_code=g.product_code,hsn_code=g.hsn_code,spec=g.spec,unit=g.unit,material=g.material,
+            po_qty=g.po_qty,supplier_qty=g.supplier_qty,received_qty=g.received_qty,accepted_qty=g.accepted_qty,rejected_qty=g.rejected_qty,wastage_kg=g.wastage_kg,
+            rate=g.rate,amount=g.amount,taxable_value=g.taxable_value,cgst_percent=g.cgst_percent,cgst_amount=g.cgst_amount,sgst_percent=g.sgst_percent,sgst_amount=g.sgst_amount,igst_percent=g.igst_percent,igst_amount=g.igst_amount,grand_total=g.grand_total,
+            gross_kg=g.gross_kg,tare_kg=g.tare_kg,net_kg=g.net_kg,net_mt=g.net_mt,qty_differ=g.qty_differ,differ_percent=g.differ_percent,
+            bilty_rate=g.bilty_rate,bilty_amount=g.bilty_amount,freight_advance=g.freight_advance,unloading_point=g.unloading_point,unloading_charges=g.unloading_charges,stock_yard_id=g.stock_yard_id,stock_yard_name=g.stock_yard_name,
+            moisture_percent=g.moisture_percent,quality_status=g.quality_status,quality_remark=g.quality_remark,deduction_amount=g.deduction_amount,shortage_ded=g.shortage_ded,rate_difference=g.rate_difference,debit_note_no=g.debit_note_no,remarks=g.remarks,
+            documents=docs,status=g.status,approval_status=g.approval_status,created_by=g.created_by,created_at=g.created_at,updated_by=g.updated_by,updated_at=g.updated_at
+        )
+    if request.method=='PUT':
+        try:
+            data=request.get_json() or {}
+            # Update fields - keep GRN No same unless provided
+            for field in ['grn_date','grn_type','po_id','po_no','sbu_id','sbu_name','sbu_code','vendor_id','vendor','vendor_code','vendor_state','station','vehicle_no','driver_name','driver_mobile','transporter','lr_no','eway_bill','invoice_no','invoice_date','challan_no','bill_no','rawana_no','wayment_slip_no','product_id','product_name','product_code','hsn_code','spec','unit','material','po_qty','supplier_qty','received_qty','accepted_qty','rejected_qty','wastage_kg','rate','taxable_value','cgst_percent','cgst_amount','sgst_percent','sgst_amount','igst_percent','igst_amount','grand_total','gross_kg','tare_kg','net_kg','net_mt','qty_differ','differ_percent','bilty_rate','bilty_amount','freight_advance','unloading_point','unloading_charges','stock_yard_id','stock_yard_name','moisture_percent','quality_status','quality_remark','deduction_amount','shortage_ded','rate_difference','debit_note_no','remarks','status']:
+                if field in data and hasattr(g, field):
+                    setattr(g, field, data[field])
+            if 'documents' in data:
+                g.documents=json.dumps(data['documents'])
+            g.updated_at=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            g.updated_by=data.get('updated_by','Admin')
+            db.session.commit()
+            return jsonify(ok=True, grn_no=g.grn_no)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            db.session.rollback()
+            return jsonify(error=f'Error updating GRN: {str(e)}'),500
+    # DELETE
+    try:
+        db.session.delete(g)
+        db.session.commit()
+        return jsonify(ok=True)
+    except Exception as e:
+        db.session.rollback()
+        return jsonify(error=str(e)),500
+
+@app.route('/api/grn/po_list', methods=['GET'])
+def grn_po_list():
+    # For GRN PO dropdown - searchable
+    search=(request.args.get('search') or '').lower()
+    pos=PO.query.order_by(PO.id.desc()).limit(100).all()
+    result=[]
+    for p in pos:
+        if search and not (search in (p.po_no or '').lower() or search in (p.vendor or '').lower() or search in (p.sbu_name or '').lower()):
+            continue
+        try:
+            items=json.loads(p.items) if p.items else []
+        except:
+            items=[]
+        # Get first product name for display
+        prod_name=items[0].get('product_name') if items else p.material
+        result.append({
+            'id':p.id,'po_no':p.po_no,'po_date':p.po_date,'po_type':p.po_type,
+            'sbu_id':p.sbu_id,'sbu_name':p.sbu_name,
+            'vendor_id':p.vendor_id,'vendor':p.vendor,'vendor_code':p.vendor_code,'vendor_state':p.vendor_state,
+            'material':prod_name,'product_id':p.product_id,'product_name':p.product_name_filter,
+            'items':items,'grand_total':p.grand_total,'status':p.status
+        })
+    return jsonify(result)
+
+@app.route('/api/grn/sbu_yards/<int:sbu_id>', methods=['GET'])
+def grn_sbu_yards(sbu_id):
+    yards=StockYardAsset.query.filter_by(sbu_id=sbu_id).all()
+    result=[]
+    for y in yards:
+        result.append({'id':y.id,'yard_name':y.yard_name,'sbu_id':y.sbu_id})
+    return jsonify(result)
+
+@app.route('/api/grn/ocr', methods=['POST'])
+def grn_ocr():
+    # OCR Agent for Weighment Slip - extracts Vehicle No, Gross, Tare, Net, Date, Slip No
+    try:
+        data=request.get_json() or {}
+        image_data=data.get('image') # base64
+        # For now return mock data - frontend will do OCR with Tesseract.js
+        # In future, use pytesseract to extract text from image
+        # This endpoint is placeholder for future weighbridge integration
+        return jsonify(
+            vehicle_no='',
+            gross_kg=0,
+            tare_kg=0,
+            net_kg=0,
+            slip_no='',
+            date=datetime.now().strftime('%Y-%m-%d'),
+            message='OCR Agent - Frontend Tesseract.js will handle extraction - Backend placeholder for future weighbridge API'
+        )
+    except Exception as e:
+        return jsonify(error=str(e)),500
+
 
 @app.route('/api/dispatch', methods=['GET','POST'])
 def disp_api():
@@ -1423,7 +1986,7 @@ def qr_gen():
 @app.route('/api/qr_list')
 def qr_list(): return jsonify([{'bag_id':q.bag_id,'product':q.product} for q in QRBag.query.order_by(QRBag.id.desc()).all()])
 
-# ========== FRONTEND HTML - v4.4.9 Vendor Master Enhanced ==========
+# ========== FRONTEND HTML - v4.5.2 PO Module Locked + Backup v4.5.1 + Product Master 3 Cat 18 Prod ==========
 HTML = """<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Lemon ERP v4.4.10.1 - Vendor Docs Drag Drop + File Select</title>
@@ -1493,6 +2056,7 @@ input,select,textarea{padding:8px 10px;border-radius:7px;border:1.5px solid var(
 <div class="menu" onclick="openTab('stock')"><i class="bi bi-box-seam"></i> Stock</div>
 <div class="menu" onclick="openTab('make')"><i class="bi bi-gear"></i> Make</div>
 <div class="menu" onclick="openTab('buy')"><i class="bi bi-cart"></i> Buy</div>
+<div class="menu" onclick="openTab('grn')"><i class="bi bi-truck-flatbed"></i> GRN - v4.6</div>
 <div class="menu" onclick="openTab('sell')"><i class="bi bi-truck"></i> Sell</div>
 <div class="menu" onclick="openTab('pack')"><i class="bi bi-box"></i> Pack</div>
 <div class="menu" onclick="openTab('qr')"><i class="bi bi-qr-code"></i> QR</div>
@@ -1582,6 +2146,56 @@ input,select,textarea{padding:8px 10px;border-radius:7px;border:1.5px solid var(
 <div style="overflow-x:auto"><table><thead><tr><th>#</th><th>PO No | Date | Validity</th><th>SBU | Delivery | Billing</th><th>Vendor | Rating | State</th><th>Type | Items | Qty</th><th>Taxable | CGST+SGST/IGST | Freight | Grand Total</th><th>Delivery Type | Schedule | Payment Days | Rate Basis | TDS/RCM</th><th>Docs | Status | Created</th><th>Actions</th></tr></thead><tbody id="poTbl"></tbody></table></div>
 </div>
 </div>
+
+<!-- GRN MODULE v4.6 - Only GRN Module - Other Modules Locked to v4.5.2 -->
+<div id="grn" class="tabcontent hidden">
+<div class="card" style="text-align:center;padding:18px">
+<h1 style="font-size:22px;font-weight:900;margin:0 0 6px"><i class="bi bi-truck-flatbed"></i> GRN Module v4.6 - SBU Code + PO Link + Weighment + OCR Agent + Stock Auto Update</h1>
+<p style="font-size:11px;color:#666;margin:0 0 12px">DB File: lemon_erp_v44_1_category.db - Table: grn - Fields: grn_no Unique SBU Code + FY + Seq, grn_type Against PO/Direct, po_id, sbu_id + sbu_code, vendor_id + station, vehicle, wayment_slip, gross/tare/net, supplier_qty, qty_differ, rate, taxable, gst, bilty, yard, quality, docs - v4.6 New</p>
+<div class="row" style="justify-content:center;max-width:900px;margin:0 auto">
+<button class="btn btn-g" style="padding:12px 28px;font-size:14px;font-weight:800" onclick="openAddGRNPopup()"><i class="bi bi-plus-circle"></i> Add New GRN - v4.6</button>
+<button class="btn btn-y" style="padding:10px 20px;font-size:12px" onclick="loadGRNs()"><i class="bi bi-arrow-clockwise"></i> Reload GRNs</button>
+<button class="btn btn-w" style="padding:10px 20px;font-size:12px" onclick="openGRNOCRHelp()"><i class="bi bi-robot"></i> Weighment OCR Agent Help</button>
+</div>
+</div>
+
+<div class="card">
+<div class="filter-bar">
+<div><label style="font-size:10px;font-weight:700">Search</label><div class="search-input"><i class="bi bi-search"></i><input id="grn_search" placeholder="GRN No, Vehicle, Supplier, PO, Material, Slip No" onkeyup="loadGRNs()"></div></div>
+<div><label style="font-size:10px">GRN Type</label><select id="grn_type_filter" onchange="loadGRNs()"><option value="">All Types</option><option value="Against PO">Against PO</option><option value="Direct">Direct</option></select></div>
+<div><label style="font-size:10px">Status</label><select id="grn_status_filter" onchange="loadGRNs()"><option value="">All Status</option><option value="Approved">Approved</option><option value="Received">Received</option><option value="Draft">Draft</option></select></div>
+<div><label style="font-size:10px">SBU</label><select id="grn_sbu_filter" onchange="loadGRNs()"><option value="">All SBUs</option></select></div>
+<div><label style="font-size:10px">Vendor</label><select id="grn_vendor_filter" onchange="loadGRNs()"><option value="">All Vendors</option></select></div>
+<div><label style="font-size:10px">Date From</label><input type="date" id="grn_date_from" onchange="loadGRNs()"></div>
+<div><label style="font-size:10px">Date To</label><input type="date" id="grn_date_to" onchange="loadGRNs()"></div>
+<div><button class="btn btn-w" onclick="clearGRNFilters()">Clear Filters</button></div>
+</div>
+<div style="display:flex;gap:12px;margin:8px 0">
+<div class="card kpi" style="flex:1"><div>Total GRNs</div><div class="val" id="grnTotalCount">0</div></div>
+<div class="card kpi" style="flex:1"><div>Total Received MT</div><div class="val" id="grnTotalMT">0 MT</div></div>
+<div class="card kpi" style="flex:1"><div>Total Accepted MT</div><div class="val" id="grnAcceptedMT">0 MT</div></div>
+<div class="card kpi" style="flex:1"><div>Today GRNs</div><div class="val" id="grnTodayCount">0</div></div>
+</div>
+<div style="overflow-x:auto">
+<table><thead><tr>
+<th>GRN No - SBU Code + FY</th>
+<th>Date</th>
+<th>PO No</th>
+<th>SBU</th>
+<th>Vendor + Station</th>
+<th>Vehicle No</th>
+<th>Material</th>
+<th>Received MT</th>
+<th>Accepted MT</th>
+<th>Net MT</th>
+<th>Status</th>
+<th>Docs</th>
+<th>Actions</th>
+</tr></thead><tbody id="grnTbl"><tr><td colspan="13" style="text-align:center">Loading GRNs...</td></tr></tbody></table>
+</div>
+</div>
+</div>
+
 <div id="sell" class="tabcontent hidden"><div class="card"><h3>Sell</h3><p>Sell module v4.4 Unchanged</p></div></div>
 <div id="customers" class="tabcontent hidden"><div class="card"><h3>Customers</h3><table><tbody id="customerTbl"></tbody></table></div></div>
 <div id="pack" class="tabcontent hidden"><div class="card"><h3>Pack</h3><p>Pack v4.4</p></div></div>
@@ -2555,8 +3169,926 @@ async function uploadBackupData(){
 
 async function loadDash(){ let r=await fetch('/api/inventory/combined'); let d=await r.json(); document.getElementById('totalVal').innerText='Rs '+(d.total_value_lakh||0).toFixed(2)+' Lakh'; let rc=await fetch('/api/product_categories'); let cats=await rc.json(); document.getElementById('catCountDash').innerText=cats.length; let rp=await fetch('/api/products'); let prods=await rp.json(); document.getElementById('prodCountDash').innerText=prods.length; let rs=await fetch('/api/sbus'); let sbus=await rs.json(); document.getElementById('sbuCountDash').innerText=sbus.length;}
 async function loadStock(){ let r=await fetch('/api/inventory/combined'); let d=await r.json(); document.getElementById('rawTbl').innerHTML='<h4>Raw</h4><table><tr><th>Code</th><th>Name</th><th>MT</th></tr>'+d.raw.map(x=>`<tr><td>${x.product_code}</td><td>${x.name}</td><td>${x.total_mt}</td></tr>`).join('')+'</table>'; document.getElementById('finTbl').innerHTML='<h4>Finished</h4><table><tr><th>Code</th><th>Name</th><th>MT</th></tr>'+d.finished.map(x=>`<tr><td>${x.product_code}</td><td>${x.name}</td><td>${x.total_mt}</td></tr>`).join('')+'</table>';}
+
+// ========== GRN MODULE v4.6 - Only GRN Module - Other Modules Locked to v4.5.2 ==========
+let grnPOsCache=[];
+let grnProductsCache=[];
+let grnSBUsCache=[];
+let grnVendorsCache=[];
+let grnCurrentType='Against PO';
+
+function openTabGRN(){
+  openTab('grn');
+  loadGRNs();
+  loadGRNFilters();
+}
+
+function openAddGRNPopup(){
+  document.getElementById('grnModal').classList.remove('hidden');
+  document.getElementById('grn_id').value='';
+  document.getElementById('grn_type').value='Against PO';
+  setGRNType('Against PO');
+  document.getElementById('grn_date').value=new Date().toISOString().split('T')[0];
+  document.getElementById('grn_invoice_date').value=new Date().toISOString().split('T')[0];
+  document.getElementById('grn_created_by').value='Admin';
+  // Reset fields
+  document.getElementById('grn_po_search').value='';
+  document.getElementById('grn_po_id').innerHTML='<option value="">Select PO - Searchable</option>';
+  document.getElementById('grn_po_preview').innerHTML='';
+  document.getElementById('grn_sbu_id').value='';
+  document.getElementById('grn_sbu_name').value='';
+  document.getElementById('grn_sbu_code_preview').innerText='SBU';
+  document.getElementById('grn_no_preview').innerText='GRN/26-27/SBU/0001 Auto';
+  document.getElementById('grn_no_display').value='GRN/26-27/SBU/0001 Auto';
+  document.getElementById('grn_vendor_id').value='';
+  document.getElementById('grn_vendor_name').value='';
+  document.getElementById('grn_station').value='';
+  document.getElementById('grn_vehicle_no').value='';
+  document.getElementById('grn_driver_name').value='';
+  document.getElementById('grn_product_id').value='';
+  document.getElementById('grn_material').value='';
+  document.getElementById('grn_gross_kg').value='';
+  document.getElementById('grn_tare_kg').value='';
+  document.getElementById('grn_net_kg').value='';
+  document.getElementById('grn_net_mt').value='';
+  document.getElementById('grn_supplier_qty').value='';
+  document.getElementById('grn_received_qty').value='';
+  document.getElementById('grn_accepted_qty').value='';
+  document.getElementById('grn_rate').value='';
+  // Load dropdowns
+  loadGRNPOs();
+  loadGRNSBUs();
+  loadGRNVendors();
+  loadGRNProducts();
+}
+
+function closeAddGRNPopup(){
+  document.getElementById('grnModal').classList.add('hidden');
+}
+
+function setGRNType(type){
+  grnCurrentType=type;
+  document.getElementById('grn_type').value=type;
+  if(type==='Against PO'){
+    document.getElementById('grn_type_po_btn').className='btn btn-g';
+    document.getElementById('grn_type_direct_btn').className='btn btn-w';
+    document.getElementById('grn_po_search').parentElement.parentElement.classList.remove('hidden');
+  } else {
+    document.getElementById('grn_type_po_btn').className='btn btn-w';
+    document.getElementById('grn_type_direct_btn').className='btn btn-g';
+    document.getElementById('grn_po_search').parentElement.parentElement.classList.add('hidden');
+  }
+}
+
+async function loadGRNFilters(){
+  // Load SBUs and Vendors for filters
+  try{
+    let sbus=await fetch('/api/sbus').then(r=>r.json());
+    grnSBUsCache=sbus;
+    let sbuFilter=document.getElementById('grn_sbu_filter');
+    let sbuSelect=document.getElementById('grn_sbu_id');
+    if(sbuFilter) sbuFilter.innerHTML='<option value="">All SBUs</option>'+sbus.map(s=>`<option value="${s.id}">${s.sbu_name}</option>`).join('');
+    if(sbuSelect) sbuSelect.innerHTML='<option value="">Select SBU</option>'+sbus.map(s=>`<option value="${s.id}">${s.sbu_name}</option>`).join('');
+  }catch(e){console.error('GRN SBU filter load error',e)}
+  try{
+    let vendors=await fetch('/api/vendors').then(r=>r.json());
+    grnVendorsCache=vendors;
+    let vendorFilter=document.getElementById('grn_vendor_filter');
+    let vendorSelect=document.getElementById('grn_vendor_id');
+    if(vendorFilter) vendorFilter.innerHTML='<option value="">All Vendors</option>'+vendors.map(v=>`<option value="${v.id}">${v.name} - ${v.station||''}</option>`).join('');
+    if(vendorSelect) vendorSelect.innerHTML='<option value="">Select Vendor</option>'+vendors.map(v=>`<option value="${v.id}">${v.name} - ${v.station||''}</option>`).join('');
+  }catch(e){console.error('GRN vendor filter load error',e)}
+}
+
+async function loadGRNPOs(){
+  try{
+    let pos=await fetch('/api/grn/po_list').then(r=>r.json());
+    grnPOsCache=pos;
+    let sel=document.getElementById('grn_po_id');
+    if(sel){
+      sel.innerHTML='<option value="">Select PO - Searchable - '+pos.length+' POs</option>'+pos.map(p=>`<option value="${p.id}">${p.po_no} - ${p.vendor} - ${p.sbu_name} - ${p.material||''} - ${p.po_date}</option>`).join('');
+    }
+  }catch(e){console.error('GRN PO list error',e)}
+}
+
+function searchGRNPOs(){
+  let search=(document.getElementById('grn_po_search').value||'').toLowerCase();
+  let sel=document.getElementById('grn_po_id');
+  if(!sel) return;
+  let filtered=grnPOsCache;
+  if(search){
+    filtered=grnPOsCache.filter(p=>(p.po_no||'').toLowerCase().includes(search) || (p.vendor||'').toLowerCase().includes(search) || (p.sbu_name||'').toLowerCase().includes(search) || (p.material||'').toLowerCase().includes(search));
+  }
+  sel.innerHTML='<option value="">Select PO - '+filtered.length+' found - Type to search</option>'+filtered.map(p=>`<option value="${p.id}">${p.po_no} - ${p.vendor} - ${p.sbu_name} - ${p.material||''}</option>`).join('');
+  if(filtered.length===1){
+    sel.value=filtered[0].id;
+    onGRNPOSelected();
+  }
+}
+
+async function onGRNPOSelected(){
+  let poId=document.getElementById('grn_po_id').value;
+  if(!poId) return;
+  let po=grnPOsCache.find(p=>String(p.id)===String(poId));
+  if(!po) return;
+  document.getElementById('grn_po_search').value=po.po_no;
+  document.getElementById('grn_po_preview').innerHTML=`<b>${po.po_no}</b> - ${po.vendor} - ${po.sbu_name} - Material: ${po.material||''} - Rate: ${po.items && po.items[0] ? po.items[0].rate : ''} - Grand: Rs ${po.grand_total||''}`;
+  document.getElementById('grn_po_date').value=po.po_date||'';
+  document.getElementById('grn_po_type').value=po.po_type||'';
+  // Auto fill SBU
+  if(po.sbu_id){
+    document.getElementById('grn_sbu_id').value=po.sbu_id;
+    document.getElementById('grn_sbu_name').value=po.sbu_name||'';
+    let sbuCode=po.sbu_name ? po.sbu_name.substring(0,4).toUpperCase().replace(/[^A-Z0-9]/g,'') : 'SBU';
+    document.getElementById('grn_sbu_code_preview').innerText=sbuCode;
+    document.getElementById('grn_no_preview').innerText=`GRN/${getFYFromDate(document.getElementById('grn_date').value)}/${sbuCode}/XXXX Auto`;
+    document.getElementById('grn_no_display').value=`GRN/${getFYFromDate(document.getElementById('grn_date').value)}/${sbuCode}/XXXX Auto`;
+    onGRNSBUChanged();
+  }
+  // Auto fill Vendor
+  if(po.vendor_id){
+    document.getElementById('grn_vendor_id').value=po.vendor_id;
+    document.getElementById('grn_vendor_name').value=po.vendor||'';
+    document.getElementById('grn_vendor_code_state').value=`${po.vendor_code||''} - ${po.vendor_state||''}`;
+    // Station from vendor
+    let vendor=grnVendorsCache.find(v=>String(v.id)===String(po.vendor_id));
+    if(vendor){
+      document.getElementById('grn_station').value=vendor.station||'';
+    }
+  }
+  // Auto fill Product
+  if(po.items && po.items.length>0){
+    let item=po.items[0];
+    document.getElementById('grn_product_id').value=item.product_id||'';
+    document.getElementById('grn_material').value=item.product_name||po.material||'';
+    document.getElementById('grn_product_code').value=item.product_code||'';
+    document.getElementById('grn_hsn_code').value=item.hsn_code||'';
+    document.getElementById('grn_spec').value=item.spec||'';
+    document.getElementById('grn_unit').value=item.uom||'MT';
+    document.getElementById('grn_po_qty').value=item.qty||'';
+    document.getElementById('grn_rate').value=item.rate||'';
+    document.getElementById('grn_cgst_percent').value=item.gst_percent ? item.gst_percent/2 : '';
+    document.getElementById('grn_sgst_percent').value=item.gst_percent ? item.gst_percent/2 : '';
+    if(item.gst_type==='inter'){
+      document.getElementById('grn_igst_percent').value=item.gst_percent||'';
+      document.getElementById('grn_cgst_percent').value='';
+      document.getElementById('grn_sgst_percent').value='';
+    }
+  }
+}
+
+function getFYFromDate(dateStr){
+  try{
+    let d=new Date(dateStr);
+    let year=d.getFullYear();
+    let month=d.getMonth()+1;
+    if(month>=4){
+      return `${String(year).slice(-2)}-${String(year+1).slice(-2)}`;
+    } else {
+      return `${String(year-1).slice(-2)}-${String(year).slice(-2)}`;
+    }
+  }catch{return '26-27';}
+}
+
+async function loadGRNSBUs(){
+  // Already loaded in loadGRNFilters
+  await loadGRNFilters();
+}
+
+async function onGRNSBUChanged(){
+  let sbuId=document.getElementById('grn_sbu_id').value;
+  if(!sbuId) return;
+  let sbu=grnSBUsCache.find(s=>String(s.id)===String(sbuId));
+  if(sbu){
+    document.getElementById('grn_sbu_name').value=sbu.sbu_name||'';
+    let sbuCode=sbu.sbu_name ? sbu.sbu_name.substring(0,4).toUpperCase().replace(/[^A-Z0-9]/g,'') : 'SBU';
+    document.getElementById('grn_sbu_code_preview').innerText=sbuCode;
+    document.getElementById('grn_no_preview').innerText=`GRN/${getFYFromDate(document.getElementById('grn_date').value)}/${sbuCode}/XXXX Auto`;
+    document.getElementById('grn_no_display').value=`GRN/${getFYFromDate(document.getElementById('grn_date').value)}/${sbuCode}/XXXX Auto`;
+    // Load yards for this SBU
+    try{
+      let yards=await fetch(`/api/grn/sbu_yards/${sbuId}`).then(r=>r.json());
+      let yardSel=document.getElementById('grn_stock_yard_id');
+      if(yardSel){
+        yardSel.innerHTML='<option value="">Select Yard - '+yards.length+' yards of '+sbu.sbu_name+'</option>'+yards.map(y=>`<option value="${y.id}">${y.yard_name}</option>`).join('');
+      }
+    }catch(e){console.error('Load yards error',e)}
+  }
+}
+
+async function loadGRNVendors(){
+  await loadGRNFilters();
+}
+
+function onGRNVendorChanged(){
+  let vendorId=document.getElementById('grn_vendor_id').value;
+  if(!vendorId) return;
+  let vendor=grnVendorsCache.find(v=>String(v.id)===String(vendorId));
+  if(vendor){
+    document.getElementById('grn_vendor_name').value=vendor.name||'';
+    document.getElementById('grn_vendor_code_state').value=`${vendor.vendor_code||''} - ${vendor.state||''} - ${vendor.gst_no||''}`;
+    document.getElementById('grn_station').value=vendor.station||'';
+  }
+}
+
+async function loadGRNProducts(){
+  try{
+    let prods=await fetch('/api/products').then(r=>r.json());
+    grnProductsCache=prods;
+    let sel=document.getElementById('grn_product_id');
+    if(sel){
+      sel.innerHTML='<option value="">Select Product - Searchable - '+prods.length+' products</option>'+prods.map(p=>`<option value="${p.id}">${p.product_code} - ${p.name} - ${p.category} - HSN ${p.hsn_code}</option>`).join('');
+    }
+  }catch(e){console.error('GRN products load error',e)}
+}
+
+function searchGRNProducts(){
+  let search=(document.getElementById('grn_product_search').value||'').toLowerCase();
+  let sel=document.getElementById('grn_product_id');
+  if(!sel) return;
+  let filtered=grnProductsCache;
+  if(search){
+    filtered=grnProductsCache.filter(p=>(p.name||'').toLowerCase().includes(search) || (p.product_code||'').toLowerCase().includes(search) || (p.category||'').toLowerCase().includes(search));
+  }
+  sel.innerHTML='<option value="">Select Product - '+filtered.length+' found</option>'+filtered.map(p=>`<option value="${p.id}">${p.product_code} - ${p.name} - ${p.category}</option>`).join('');
+}
+
+function onGRNProductSelected(){
+  let prodId=document.getElementById('grn_product_id').value;
+  if(!prodId) return;
+  let prod=grnProductsCache.find(p=>String(p.id)===String(prodId));
+  if(prod){
+    document.getElementById('grn_product_search').value=prod.name;
+    document.getElementById('grn_product_code').value=prod.product_code||'';
+    document.getElementById('grn_hsn_code').value=prod.hsn_code||'';
+    document.getElementById('grn_material').value=prod.name||'';
+    document.getElementById('grn_spec').value=prod.description||'';
+  }
+}
+
+function onGRNYardSelected(){
+  let yardId=document.getElementById('grn_stock_yard_id').value;
+  let yardText=document.getElementById('grn_stock_yard_id').selectedOptions[0]?.text||'';
+  document.getElementById('grn_unloading_point').value=yardText||'';
+  document.getElementById('grn_stock_yard_name').value=yardText||'';
+}
+
+function calcGRNWeighment(){
+  let gross=parseFloat(document.getElementById('grn_gross_kg').value)||0;
+  let tare=parseFloat(document.getElementById('grn_tare_kg').value)||0;
+  let net=gross - tare;
+  if(gross && tare){
+    document.getElementById('grn_net_kg').value=net.toFixed(3);
+    document.getElementById('grn_net_mt').value=(net/1000).toFixed(3);
+    // Received Qty = Net MT if not manually entered
+    if(!document.getElementById('grn_received_qty').value){
+      document.getElementById('grn_received_qty').value=(net/1000).toFixed(3);
+    }
+  }
+  let supplierQty=parseFloat(document.getElementById('grn_supplier_qty').value)||0;
+  let receivedQty=parseFloat(document.getElementById('grn_received_qty').value)||parseFloat(document.getElementById('grn_net_mt').value)||0;
+  if(supplierQty && receivedQty){
+    let differ=supplierQty - receivedQty;
+    document.getElementById('grn_qty_differ').value=differ.toFixed(3);
+    let differPercent=supplierQty ? (differ/supplierQty*100).toFixed(3) : 0;
+    document.getElementById('grn_differ_percent').value=differPercent;
+  }
+  calcGRNAmount();
+}
+
+function calcGRNAmount(){
+  let acceptedQty=parseFloat(document.getElementById('grn_accepted_qty').value)||parseFloat(document.getElementById('grn_received_qty').value)||parseFloat(document.getElementById('grn_net_mt').value)||0;
+  let rate=parseFloat(document.getElementById('grn_rate').value)||0;
+  if(acceptedQty && rate){
+    let taxable=acceptedQty * rate;
+    document.getElementById('grn_taxable_value').value=taxable.toFixed(2);
+    let cgstPercent=parseFloat(document.getElementById('grn_cgst_percent').value)||0;
+    let sgstPercent=parseFloat(document.getElementById('grn_sgst_percent').value)||0;
+    let igstPercent=parseFloat(document.getElementById('grn_igst_percent').value)||0;
+    let cgstAmount=cgstPercent ? taxable * cgstPercent/100 : 0;
+    let sgstAmount=sgstPercent ? taxable * sgstPercent/100 : 0;
+    let igstAmount=igstPercent ? taxable * igstPercent/100 : 0;
+    document.getElementById('grn_cgst_amount').value=cgstAmount.toFixed(2);
+    document.getElementById('grn_sgst_amount').value=sgstAmount.toFixed(2);
+    document.getElementById('grn_igst_amount').value=igstAmount.toFixed(2);
+    let grandTotal=taxable + cgstAmount + sgstAmount + igstAmount;
+    document.getElementById('grn_grand_total').value=grandTotal.toFixed(2);
+  }
+}
+
+async function loadGRNs(){
+  let search=(document.getElementById('grn_search')?.value||'').trim();
+  let grnType=document.getElementById('grn_type_filter')?.value||'';
+  let status=document.getElementById('grn_status_filter')?.value||'';
+  let sbu=document.getElementById('grn_sbu_filter')?.value||'';
+  let vendor=document.getElementById('grn_vendor_filter')?.value||'';
+  let dateFrom=document.getElementById('grn_date_from')?.value||'';
+  let dateTo=document.getElementById('grn_date_to')?.value||'';
+  let params=new URLSearchParams();
+  if(search) params.set('search',search);
+  if(grnType) params.set('grn_type',grnType);
+  if(status) params.set('status',status);
+  if(sbu) params.set('sbu',sbu);
+  if(vendor) params.set('vendor',vendor);
+  if(dateFrom) params.set('date_from',dateFrom);
+  if(dateTo) params.set('date_to',dateTo);
+  try{
+    let res=await fetch('/api/grn?'+params.toString());
+    let grns=await res.json();
+    let tbl=document.getElementById('grnTbl');
+    if(!tbl) return;
+    if(grns.length===0){
+      tbl.innerHTML='<tr><td colspan="13" style="text-align:center">No GRNs found - Add New GRN</td></tr>';
+    } else {
+      tbl.innerHTML=grns.map(g=>{
+        let docsBadge=g.has_docs ? `<span class="badge ok">Docs</span>` : `<span class="badge warn">No Docs</span>`;
+        return `<tr>
+          <td><b>${g.grn_no||''}</b><br><span style="font-size:9px;color:#666">${g.sbu_code||''} - ${g.grn_type||''}</span></td>
+          <td>${g.grn_date||''}</td>
+          <td>${g.po_no||''}</td>
+          <td>${g.sbu_name||''}<br><span style="font-size:9px">${g.sbu_code||''}</span></td>
+          <td>${g.vendor||''}<br><span style="font-size:9px;color:#666">${g.station||''}</span></td>
+          <td><b>${g.vehicle_no||''}</b></td>
+          <td>${g.product_name||g.material||''}<br><span style="font-size:9px">${g.product_code||''}</span></td>
+          <td>${g.received_qty||g.net_mt||0} MT</td>
+          <td><b style="color:#1E7D32">${g.accepted_qty||0} MT</b></td>
+          <td>${g.net_mt||0} MT<br><span style="font-size:9px">${g.net_kg||0} Kg</span></td>
+          <td><span class="badge ${g.status==='Approved'?'ok':g.status==='Received'?'brass':'warn'}">${g.status||''}</span></td>
+          <td>${docsBadge}</td>
+          <td>
+            <button class="btn btn-w" style="padding:4px 8px;font-size:10px" onclick="editGRN(${g.id})">Edit</button>
+            <button class="btn btn-r" style="padding:4px 8px;font-size:10px" onclick="delGRN(${g.id})">Del</button>
+            <button class="btn btn-b" style="padding:4px 8px;font-size:10px" onclick="viewGRNDocs(${g.id})">Docs</button>
+          </td>
+        </tr>`;
+      }).join('');
+    }
+    // KPIs
+    let totalMT=grns.reduce((sum,g)=>sum+parseFloat(g.received_qty||0),0);
+    let acceptedMT=grns.reduce((sum,g)=>sum+parseFloat(g.accepted_qty||0),0);
+    let today=new Date().toISOString().split('T')[0];
+    let todayCount=grns.filter(g=>g.grn_date===today).length;
+    document.getElementById('grnTotalCount').innerText=grns.length;
+    document.getElementById('grnTotalMT').innerText=totalMT.toFixed(3)+' MT';
+    document.getElementById('grnAcceptedMT').innerText=acceptedMT.toFixed(3)+' MT';
+    document.getElementById('grnTodayCount').innerText=todayCount;
+  }catch(e){
+    console.error('loadGRNs error',e);
+    document.getElementById('grnTbl').innerHTML=`<tr><td colspan="13" style="color:red">Error loading GRNs: ${e.message}</td></tr>`;
+  }
+}
+
+function clearGRNFilters(){
+  document.getElementById('grn_search').value='';
+  document.getElementById('grn_type_filter').value='';
+  document.getElementById('grn_status_filter').value='';
+  document.getElementById('grn_sbu_filter').value='';
+  document.getElementById('grn_vendor_filter').value='';
+  document.getElementById('grn_date_from').value='';
+  document.getElementById('grn_date_to').value='';
+  loadGRNs();
+}
+
+async function saveGRN(){
+  let grnId=document.getElementById('grn_id').value;
+  let sbuId=document.getElementById('grn_sbu_id').value;
+  if(!sbuId) return alert('SBU mandatory - Select SBU');
+  let vendorId=document.getElementById('grn_vendor_id').value;
+  if(!vendorId) return alert('Vendor mandatory');
+  let vehicleNo=document.getElementById('grn_vehicle_no').value;
+  if(!vehicleNo) return alert('Vehicle No mandatory');
+  let productId=document.getElementById('grn_product_id').value;
+  if(!productId) return alert('Product mandatory - Select Product');
+  let grossKg=document.getElementById('grn_gross_kg').value;
+  let tareKg=document.getElementById('grn_tare_kg').value;
+  if(!grossKg || !tareKg) return alert('Gross Kg and Tare Kg mandatory for weighment');
+  let acceptedQty=document.getElementById('grn_accepted_qty').value || document.getElementById('grn_received_qty').value || document.getElementById('grn_net_mt').value;
+  if(!acceptedQty || parseFloat(acceptedQty)<=0) return alert('Accepted Qty >0 required');
+  
+  let payload={
+    grn_type: document.getElementById('grn_type').value,
+    grn_date: document.getElementById('grn_date').value,
+    po_id: document.getElementById('grn_po_id').value ? parseInt(document.getElementById('grn_po_id').value) : null,
+    po_no: document.getElementById('grn_po_search').value,
+    sbu_id: sbuId ? parseInt(sbuId) : null,
+    sbu_name: document.getElementById('grn_sbu_name').value,
+    vendor_id: vendorId ? parseInt(vendorId) : null,
+    vendor: document.getElementById('grn_vendor_name').value,
+    station: document.getElementById('grn_station').value,
+    vehicle_no: vehicleNo.toUpperCase(),
+    driver_name: document.getElementById('grn_driver_name').value,
+    driver_mobile: document.getElementById('grn_driver_mobile').value,
+    transporter: document.getElementById('grn_transporter').value,
+    lr_no: document.getElementById('grn_lr_no').value,
+    eway_bill: document.getElementById('grn_eway_bill').value,
+    bill_no: document.getElementById('grn_bill_no').value,
+    invoice_no: document.getElementById('grn_invoice_no').value || document.getElementById('grn_bill_no').value,
+    invoice_date: document.getElementById('grn_invoice_date').value,
+    challan_no: document.getElementById('grn_challan_no').value,
+    rawana_no: document.getElementById('grn_rawana_no').value,
+    wayment_slip_no: document.getElementById('grn_wayment_slip_no').value,
+    product_id: productId ? parseInt(productId) : null,
+    product_name: document.getElementById('grn_material').value,
+    product_code: document.getElementById('grn_product_code').value,
+    hsn_code: document.getElementById('grn_hsn_code').value,
+    spec: document.getElementById('grn_spec').value,
+    unit: document.getElementById('grn_unit').value,
+    material: document.getElementById('grn_material').value,
+    po_qty: parseFloat(document.getElementById('grn_po_qty').value)||0,
+    supplier_qty: parseFloat(document.getElementById('grn_supplier_qty').value)||0,
+    received_qty: parseFloat(document.getElementById('grn_received_qty').value)||0,
+    accepted_qty: parseFloat(acceptedQty)||0,
+    rejected_qty: parseFloat(document.getElementById('grn_rejected_qty').value)||0,
+    rate: parseFloat(document.getElementById('grn_rate').value)||0,
+    taxable_value: parseFloat(document.getElementById('grn_taxable_value').value)||0,
+    cgst_percent: parseFloat(document.getElementById('grn_cgst_percent').value)||0,
+    cgst_amount: parseFloat(document.getElementById('grn_cgst_amount').value)||0,
+    sgst_percent: parseFloat(document.getElementById('grn_sgst_percent').value)||0,
+    sgst_amount: parseFloat(document.getElementById('grn_sgst_amount').value)||0,
+    igst_percent: parseFloat(document.getElementById('grn_igst_percent').value)||0,
+    igst_amount: parseFloat(document.getElementById('grn_igst_amount').value)||0,
+    grand_total: parseFloat(document.getElementById('grn_grand_total').value)||0,
+    gross_kg: parseFloat(document.getElementById('grn_gross_kg').value)||0,
+    tare_kg: parseFloat(document.getElementById('grn_tare_kg').value)||0,
+    net_kg: parseFloat(document.getElementById('grn_net_kg').value)||0,
+    net_mt: parseFloat(document.getElementById('grn_net_mt').value)||0,
+    qty_differ: parseFloat(document.getElementById('grn_qty_differ').value)||0,
+    differ_percent: parseFloat(document.getElementById('grn_differ_percent').value)||0,
+    wastage_kg: parseFloat(document.getElementById('grn_wastage_kg').value)||0,
+    bilty_rate: parseFloat(document.getElementById('grn_bilty_rate').value)||0,
+    bilty_amount: parseFloat(document.getElementById('grn_bilty_amount').value)||0,
+    freight_advance: parseFloat(document.getElementById('grn_freight_advance').value)||0,
+    unloading_point: document.getElementById('grn_unloading_point').value,
+    unloading_charges: parseFloat(document.getElementById('grn_unloading_charges').value)||0,
+    stock_yard_id: document.getElementById('grn_stock_yard_id').value ? parseInt(document.getElementById('grn_stock_yard_id').value) : 0,
+    stock_yard_name: document.getElementById('grn_stock_yard_id').selectedOptions[0]?.text||'',
+    moisture_percent: parseFloat(document.getElementById('grn_moisture_percent').value)||0,
+    quality_status: document.getElementById('grn_quality_status').value,
+    quality_remark: document.getElementById('grn_quality_remark').value,
+    deduction_amount: parseFloat(document.getElementById('grn_deduction_amount').value)||0,
+    shortage_ded: parseFloat(document.getElementById('grn_shortage_ded').value)||0,
+    rate_difference: parseFloat(document.getElementById('grn_rate_difference').value)||0,
+    debit_note_no: document.getElementById('grn_debit_note_no').value,
+    remarks: document.getElementById('grn_remarks').value,
+    documents: {
+      weighment_slip: document.getElementById('doc_grn_weighment_slip').value,
+      invoice: document.getElementById('doc_grn_invoice').value
+    },
+    status: document.getElementById('grn_status').value,
+    created_by: document.getElementById('grn_created_by').value
+  };
+  
+  console.log('GRN Payload to save:', payload);
+  let url=grnId ? `/api/grn/${grnId}` : '/api/grn';
+  let method=grnId ? 'PUT' : 'POST';
+  try{
+    let res=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    let text=await res.text();
+    let j;
+    try{ j=JSON.parse(text); }catch(parseErr){
+      console.error('GRN Save - Server returned non-JSON:', text.substring(0,1000));
+      if(text.trim().startsWith('<!')){
+        let clean=text.replace(/<[^>]*>/g,' ').trim().substring(0,600);
+        alert(`❌ Server Error 500 - Backend crashed\nStatus: ${res.status}\nError: ${clean}\nCheck Render logs`);
+      } else {
+        alert(`❌ Invalid JSON - Status ${res.status}\n${text.substring(0,500)}`);
+      }
+      return;
+    }
+    console.log('GRN Save response:', res.status, j);
+    if(res.ok){
+      alert(`✅ GRN ${grnId?'Updated':'Created'}: ${j.grn_no} - Accepted ${j.accepted_qty} MT - Stock Auto Updated`);
+      closeAddGRNPopup();
+      loadGRNs();
+    } else {
+      alert(`❌ Save failed: ${j.error||'Unknown'} (Status ${res.status})`);
+    }
+  }catch(e){
+    console.error('Save GRN JS Error:', e);
+    alert(`❌ JS Error saving GRN: ${e.message}`);
+  }
+}
+
+async function editGRN(id){
+  try{
+    let g=await fetch(`/api/grn/${id}`).then(r=>r.json());
+    openAddGRNPopup();
+    document.getElementById('grn_id').value=g.id;
+    document.getElementById('grn_type').value=g.grn_type||'Against PO';
+    setGRNType(g.grn_type||'Against PO');
+    document.getElementById('grn_po_id').value=g.po_id||'';
+    document.getElementById('grn_po_search').value=g.po_no||'';
+    document.getElementById('grn_sbu_id').value=g.sbu_id||'';
+    document.getElementById('grn_sbu_name').value=g.sbu_name||'';
+    document.getElementById('grn_station').value=g.station||'';
+    document.getElementById('grn_vendor_id').value=g.vendor_id||'';
+    document.getElementById('grn_vendor_name').value=g.vendor||'';
+    document.getElementById('grn_vehicle_no').value=g.vehicle_no||'';
+    document.getElementById('grn_product_id').value=g.product_id||'';
+    document.getElementById('grn_material').value=g.product_name||g.material||'';
+    document.getElementById('grn_gross_kg').value=g.gross_kg||'';
+    document.getElementById('grn_tare_kg').value=g.tare_kg||'';
+    document.getElementById('grn_net_kg').value=g.net_kg||'';
+    document.getElementById('grn_net_mt').value=g.net_mt||'';
+    document.getElementById('grn_supplier_qty').value=g.supplier_qty||'';
+    document.getElementById('grn_received_qty').value=g.received_qty||'';
+    document.getElementById('grn_accepted_qty').value=g.accepted_qty||'';
+    document.getElementById('grn_rate').value=g.rate||'';
+    document.getElementById('grn_bill_no').value=g.bill_no||'';
+    document.getElementById('grn_wayment_slip_no').value=g.wayment_slip_no||'';
+    document.getElementById('grn_date').value=g.grn_date||'';
+  }catch(e){alert('Error loading GRN: '+e.message)}
+}
+
+async function delGRN(id){
+  if(!confirm('Delete this GRN? Stock will NOT be auto reversed - adjust manually. Continue?')) return;
+  try{
+    let res=await fetch(`/api/grn/${id}`,{method:'DELETE'});
+    let j=await res.json();
+    if(res.ok){ alert('✅ GRN Deleted'); loadGRNs(); } else alert('❌ Delete failed: '+(j.error||'Unknown'));
+  }catch(e){alert('Error: '+e.message)}
+}
+
+function viewGRNDocs(id){
+  alert('GRN Docs viewer - Coming soon - Docs are stored as base64 in documents field');
+}
+
+// Drag & Drop for GRN Docs
+function handleGRNDragOver(e){ e.preventDefault(); e.currentTarget.classList.add('dragover'); }
+function handleGRNDragLeave(e){ e.currentTarget.classList.remove('dragover'); }
+function handleGRNDrop(e, type){
+  e.preventDefault();
+  e.currentTarget.classList.remove('dragover');
+  let files=e.dataTransfer.files;
+  if(files.length>0) handleGRNFileSelect({files:files}, type);
+}
+function handleGRNFileSelect(input, type){
+  let file=input.files[0];
+  if(!file) return;
+  let reader=new FileReader();
+  reader.onload=function(e){
+    document.getElementById('doc_grn_'+type).value=e.target.result;
+    document.getElementById('dz_file_'+type).innerText=file.name+' ('+(file.size/1024).toFixed(1)+'KB)';
+    document.getElementById('dz_file_'+type).classList.remove('hidden');
+    document.getElementById('dz_clear_'+type).classList.remove('hidden');
+  };
+  reader.readAsDataURL(file);
+}
+function clearGRNDoc(type){
+  document.getElementById('doc_grn_'+type).value='';
+  document.getElementById('dz_file_'+type).innerText='No file';
+  document.getElementById('dz_file_'+type).classList.add('hidden');
+  document.getElementById('dz_clear_'+type).classList.add('hidden');
+}
+
+// OCR Agent
+function openGRNOCRAgent(){
+  document.getElementById('grnOCRModal').classList.remove('hidden');
+}
+function closeGRNOCRModal(){
+  document.getElementById('grnOCRModal').classList.add('hidden');
+}
+function openGRNOCRHelp(){
+  alert('Weighment Slip OCR Agent v4.6:\n\n1. Click Scan Weighment Slip with AI\n2. Upload photo of weighment slip (JPG/PNG/PDF)\n3. AI extracts Vehicle No, Gross, Tare, Net, Slip No, Date\n4. Verify and Apply to GRN Form\n\nCurrent: Frontend Tesseract.js OCR (will be added in v4.6.1)\nFuture: Direct Weighbridge API integration (v4.7)\n\nFor now, manually enter Gross/Tare - OCR will auto fill in next update');
+}
+function handleOCRDrop(e){
+  e.preventDefault();
+  e.currentTarget.classList.remove('dragover');
+  let files=e.dataTransfer.files;
+  if(files.length>0) handleOCRFileSelect({files:files});
+}
+function handleOCRFileSelect(input){
+  let file=input.files[0];
+  if(!file) return;
+  document.getElementById('dz_file_ocr').innerText=file.name+' ('+(file.size/1024).toFixed(1)+'KB)';
+  document.getElementById('dz_file_ocr').classList.remove('hidden');
+  document.getElementById('ocr_results').classList.remove('hidden');
+  // Mock OCR - In real implementation, use Tesseract.js
+  // For now, try to extract numbers from filename or manual
+  document.getElementById('ocr_raw_text').innerText='OCR Raw Text (Tesseract.js will be integrated in v4.6.1):\nFile: '+file.name+'\n\nPlease manually enter Gross/Tare/Vehicle from slip photo for now. AI auto extraction coming in next update.\n\nFuture: This will use Tesseract.js to read text like:\nVehicle No: RJ21GD0595\nGross: 25000 Kg\nTare: 8000 Kg\nNet: 17000 Kg\nSlip No: 6816';
+  document.getElementById('ocr_raw_text').classList.remove('hidden');
+  // Mock extraction
+  document.getElementById('ocr_vehicle_no').value='';
+  document.getElementById('ocr_gross_kg').value='';
+  document.getElementById('ocr_tare_kg').value='';
+  document.getElementById('ocr_net_kg').value='';
+}
+function applyOCRResults(){
+  let vehicleNo=document.getElementById('ocr_vehicle_no').value;
+  let grossKg=document.getElementById('ocr_gross_kg').value;
+  let tareKg=document.getElementById('ocr_tare_kg').value;
+  let netKg=document.getElementById('ocr_net_kg').value;
+  let slipNo=document.getElementById('ocr_slip_no').value;
+  let date=document.getElementById('ocr_date').value;
+  if(vehicleNo) document.getElementById('grn_vehicle_no').value=vehicleNo.toUpperCase();
+  if(grossKg) document.getElementById('grn_gross_kg').value=grossKg;
+  if(tareKg) document.getElementById('grn_tare_kg').value=tareKg;
+  if(netKg) document.getElementById('grn_net_kg').value=netKg;
+  if(slipNo) document.getElementById('grn_wayment_slip_no').value=slipNo;
+  if(date) document.getElementById('grn_date').value=date;
+  calcGRNWeighment();
+  closeGRNOCRModal();
+  alert('✅ OCR data applied to GRN form - Verify Gross/Tare/Net and Save');
+}
+function clearOCR(){
+  document.getElementById('ocr_vehicle_no').value='';
+  document.getElementById('ocr_gross_kg').value='';
+  document.getElementById('ocr_tare_kg').value='';
+  document.getElementById('ocr_net_kg').value='';
+  document.getElementById('ocr_slip_no').value='';
+  document.getElementById('ocr_date').value='';
+  document.getElementById('ocr_raw_text').innerText='';
+  document.getElementById('ocr_results').classList.add('hidden');
+  document.getElementById('ocr_raw_text').classList.add('hidden');
+  document.getElementById('dz_file_ocr').classList.add('hidden');
+}
+
+// Hook GRN tab to openTab
+let originalOpenTab=window.openTab;
+window.openTab=function(tab){
+  if(originalOpenTab) originalOpenTab(tab);
+  if(tab==='grn'){
+    loadGRNs();
+    loadGRNFilters();
+  }
+};
+
 loadDash(); loadAllProductsForSBU(); loadProdCatOptions(); loadVendorMasters();
+
 </script>
+
+<!-- GRN MODAL v4.6 - Only GRN Module -->
+<div id="grnModal" class="modal hidden">
+<div class="modal-content" style="max-width:1100px">
+<div class="modal-header">
+<h3 style="margin:0"><i class="bi bi-truck-flatbed"></i> Add GRN - v4.6 - SBU Code + PO Link + Weighment + OCR + Yard + Stock Auto</h3>
+<button class="close-x" onclick="closeAddGRNPopup()">×</button>
+</div>
+<div class="modal-body" id="grnModalBody">
+<!-- GRN Type Toggle -->
+<div class="form-box" style="background:#E8F0FE;border:2px solid #1A2E1E">
+<div class="row" style="align-items:center">
+<div><b>GRN Type *</b><br><span style="font-size:10px;color:#666">Against PO = Pick max info from PO, Direct = Manual</span></div>
+<div style="display:flex;gap:8px">
+<button class="btn btn-g" id="grn_type_po_btn" onclick="setGRNType('Against PO')">Against PO (Default)</button>
+<button class="btn btn-w" id="grn_type_direct_btn" onclick="setGRNType('Direct')">Direct GRN</button>
+</div>
+</div>
+<input type="hidden" id="grn_type" value="Against PO">
+<input type="hidden" id="grn_id">
+</div>
+
+<!-- PO No First - Searchable -->
+<div class="form-box" style="background:#FFFBEB;border:2px solid var(--brass)">
+<b>PO Reference - Searchable Dropdown - Pick Max Info from PO</b>
+<div class="row">
+<div style="flex:2"><label>PO No * - Search PO No, Vendor, SBU - Type to search</label>
+<input type="text" id="grn_po_search" placeholder="Type PO No e.g. PO/26-27/PRODUCT/0001 - Searchable" onkeyup="searchGRNPOs()" autocomplete="off">
+<select id="grn_po_id" style="margin-top:4px" onchange="onGRNPOSelected()"><option value="">Select PO - Searchable</option></select>
+<div id="grn_po_preview" style="font-size:10px;color:#666;margin-top:4px"></div>
+</div>
+<div><label>PO Date (Auto from PO)</label><input type="text" id="grn_po_date" readonly style="background:#f5f5f5"></div>
+<div><label>PO Type</label><input type="text" id="grn_po_type" readonly style="background:#f5f5f5"></div>
+</div>
+</div>
+
+<!-- SBU + Vendor + Station -->
+<div class="form-box">
+<b>SBU + Vendor + Station - Auto from PO, Editable - SBU Code for GRN No</b>
+<div class="row">
+<div><label>SBU * - Pick from PO / Manual</label><select id="grn_sbu_id" onchange="onGRNSBUChanged()"><option value="">Select SBU</option></select>
+<div style="font-size:10px;color:#666">SBU Code auto: <span id="grn_sbu_code_preview" style="font-weight:800;color:#1A2E1E">SBU</span> → GRN No: <span id="grn_no_preview" style="font-weight:800;color:#C5221F">GRN/26-27/SBU/0001 Auto</span></div>
+</div>
+<div><label>SBU Name (Auto)</label><input type="text" id="grn_sbu_name" readonly style="background:#f5f5f5"></div>
+<div><label>Station / Source - From Vendor</label><input type="text" id="grn_station" placeholder="Station e.g. Dhanapa, Borunda"></div>
+</div>
+<div class="row">
+<div><label>Vendor * - From PO / Manual</label><select id="grn_vendor_id" onchange="onGRNVendorChanged()"><option value="">Select Vendor</option></select></div>
+<div><label>Vendor Name (Auto)</label><input type="text" id="grn_vendor_name" readonly style="background:#f5f5f5"></div>
+<div><label>Vendor Code / State</label><input type="text" id="grn_vendor_code_state" readonly style="background:#f5f5f5"></div>
+</div>
+</div>
+
+<!-- Vehicle & Transport -->
+<div class="form-box">
+<b>Vehicle & Transport Details</b>
+<div class="row">
+<div><label>Vehicle No *</label><input type="text" id="grn_vehicle_no" placeholder="RJ21GD0595 - Vehicle No" style="text-transform:uppercase"></div>
+<div><label>Driver Name</label><input type="text" id="grn_driver_name" placeholder="Driver Name"></div>
+<div><label>Driver Mobile</label><input type="text" id="grn_driver_mobile" placeholder="Mobile No"></div>
+</div>
+<div class="row">
+<div><label>Transporter</label><input type="text" id="grn_transporter" placeholder="Transporter e.g. FOR, Gotan Barmer Transport"></div>
+<div><label>LR No / Bilty No</label><input type="text" id="grn_lr_no" placeholder="LR No"></div>
+<div><label>E-Way Bill No</label><input type="text" id="grn_eway_bill" placeholder="E-Way Bill"></div>
+</div>
+</div>
+
+<!-- Invoice & Challan - One as you said -->
+<div class="form-box">
+<b>Invoice & Challan - One Bill as you said</b>
+<div class="row">
+<div><label>Bill No / Invoice No</label><input type="text" id="grn_bill_no" placeholder="Bill No e.g. 5355"></div>
+<div><label>Invoice No (Same as Bill)</label><input type="text" id="grn_invoice_no" placeholder="Invoice No - Same as Bill No"></div>
+<div><label>Invoice Date</label><input type="date" id="grn_invoice_date"></div>
+</div>
+<div class="row">
+<div><label>Challan No / Rawana No</label><input type="text" id="grn_challan_no" placeholder="Challan No"></div>
+<div><label>Rawana No (As per your sheet)</label><input type="text" id="grn_rawana_no" placeholder="Rawana No - e.g. RN PLANT"></div>
+<div><label>Wayment Slip No * (Your sheet col 1)</label><input type="text" id="grn_wayment_slip_no" placeholder="Wayment Slip No e.g. 6816"></div>
+</div>
+</div>
+
+<!-- Material - Single Product as you said -->
+<div class="form-box" style="background:#E6F4EA;border:2px solid #1E7D32">
+<b>Material - Single Product - Auto from PO + Product Master</b>
+<div class="row">
+<div style="flex:2"><label>Product * - Searchable - From Products Master</label>
+<input type="text" id="grn_product_search" placeholder="Search Product e.g. Lime Stone, Pet Coke, Kali Loose" onkeyup="searchGRNProducts()" autocomplete="off">
+<select id="grn_product_id" onchange="onGRNProductSelected()"><option value="">Select Product - Searchable</option></select>
+</div>
+<div><label>Product Code (Auto)</label><input type="text" id="grn_product_code" readonly style="background:#f5f5f5"></div>
+<div><label>HSN Code (Auto)</label><input type="text" id="grn_hsn_code" readonly style="background:#f5f5f5"></div>
+</div>
+<div class="row">
+<div><label>Material Name (Auto / Manual)</label><input type="text" id="grn_material" placeholder="Material e.g. Kali Loose, Pet Coke"></div>
+<div><label>Spec / Description</label><input type="text" id="grn_spec" placeholder="Spec"></div>
+<div><label>UOM</label><select id="grn_unit"><option value="MT">MT</option><option value="KG">KG</option><option value="QTL">QTL</option></select></div>
+</div>
+</div>
+
+<!-- Weighment - With OCR Agent -->
+<div class="form-box" style="background:#FFF3E0;border:2px solid #8C6B2A">
+<div style="display:flex;justify-content:space-between;align-items:center">
+<b>Weighment Details - Gross/Tare/Net Auto + OCR Agent for Future Weighbridge</b>
+<button class="btn btn-y" style="font-size:11px;padding:6px 12px" onclick="openGRNOCRAgent()"><i class="bi bi-robot"></i> Scan Weighment Slip with AI (OCR Agent)</button>
+</div>
+<div class="row">
+<div><label>Gross Kg *</label><input type="number" id="grn_gross_kg" step="0.001" placeholder="Gross Kg e.g. 20000" onkeyup="calcGRNWeighment()"></div>
+<div><label>Tare Kg *</label><input type="number" id="grn_tare_kg" step="0.001" placeholder="Tare Kg e.g. 8000" onkeyup="calcGRNWeighment()"></div>
+<div><label>Net Kg Auto = Gross - Tare</label><input type="number" id="grn_net_kg" readonly style="background:#E8F0FE;font-weight:800" placeholder="Net Kg Auto"></div>
+</div>
+<div class="row">
+<div><label>Net MT Auto = Net Kg / 1000 (GRN WIEGHT)</label><input type="number" id="grn_net_mt" readonly style="background:#E6F4EA;font-weight:800" placeholder="Net MT Auto"></div>
+<div><label>Supplier / Rawana Qty MT (From Bill)</label><input type="number" id="grn_supplier_qty" step="0.001" placeholder="Supplier Qty e.g. 21.27" onkeyup="calcGRNWeighment()"></div>
+<div><label>Received Qty MT (GRN WIEGHT)</label><input type="number" id="grn_received_qty" step="0.001" placeholder="Received Qty" onkeyup="calcGRNWeighment()"></div>
+</div>
+<div class="row">
+<div><label>Qty Differ Auto = Supplier - Received</label><input type="number" id="grn_qty_differ" readonly style="background:#FFFBEB" placeholder="Qty Differ Auto"></div>
+<div><label>Differ % Auto</label><input type="number" id="grn_differ_percent" readonly style="background:#FFFBEB" placeholder="Differ % Auto"></div>
+<div><label>Wastage Kg</label><input type="number" id="grn_wastage_kg" step="0.001" placeholder="Wastage Kg"></div>
+</div>
+<div style="font-size:10px;color:#666;margin-top:6px">Future: Weighbridge integration - API hook ready - Manual for now - OCR Agent can scan photo of weighment slip and auto fill Gross/Tare/Vehicle/Date/Slip No</div>
+</div>
+
+<!-- Qty & Rate & GST -->
+<div class="form-box">
+<b>Quantity, Rate, GST, Totals - Rate from PO + GST</b>
+<div class="row">
+<div><label>PO Qty MT (Auto from PO)</label><input type="number" id="grn_po_qty" readonly style="background:#f5f5f5" placeholder="PO Qty"></div>
+<div><label>Accepted Qty MT * (Stock will add this)</label><input type="number" id="grn_accepted_qty" step="0.001" placeholder="Accepted Qty" onkeyup="calcGRNAmount()"></div>
+<div><label>Rejected Qty MT</label><input type="number" id="grn_rejected_qty" step="0.001" placeholder="Rejected Qty" onkeyup="calcGRNAmount()"></div>
+</div>
+<div class="row">
+<div><label>Billing Rate Rs/MT * - From PO</label><input type="number" id="grn_rate" step="0.01" placeholder="Rate e.g. 4280" onkeyup="calcGRNAmount()"></div>
+<div><label>Taxable Amount Auto = Accepted * Rate</label><input type="number" id="grn_taxable_value" readonly style="background:#E6F4EA" placeholder="Taxable Auto"></div>
+<div><label>Grand Total</label><input type="number" id="grn_grand_total" readonly style="background:#E6F4EA;font-weight:800" placeholder="Grand Total"></div>
+</div>
+<div class="row">
+<div><label>CGST %</label><input type="number" id="grn_cgst_percent" step="0.01" placeholder="CGST % e.g. 2.5" onkeyup="calcGRNAmount()"></div>
+<div><label>CGST Amount Auto</label><input type="number" id="grn_cgst_amount" readonly style="background:#f5f5f5" placeholder="CGST Amount"></div>
+<div><label>SGST %</label><input type="number" id="grn_sgst_percent" step="0.01" placeholder="SGST % e.g. 2.5" onkeyup="calcGRNAmount()"></div>
+<div><label>SGST Amount Auto</label><input type="number" id="grn_sgst_amount" readonly style="background:#f5f5f5" placeholder="SGST Amount"></div>
+<div><label>IGST % (If inter-state)</label><input type="number" id="grn_igst_percent" step="0.01" placeholder="IGST % e.g. 5" onkeyup="calcGRNAmount()"></div>
+<div><label>IGST Amount Auto</label><input type="number" id="grn_igst_amount" readonly style="background:#f5f5f5" placeholder="IGST Amount"></div>
+</div>
+</div>
+
+<!-- Freight & Unloading - Bilty Option -->
+<div class="form-box">
+<b>Freight & Unloading - Bilty Amount Option if PO is on that basis (Mostly Delivered)</b>
+<div class="row">
+<div><label>Bilty Rate Rs/MT</label><input type="number" id="grn_bilty_rate" step="0.01" placeholder="Bilty Rate e.g. 0 or 1600 as per sheet"></div>
+<div><label>Bilty Amount Rs</label><input type="number" id="grn_bilty_amount" step="0.01" placeholder="Bilty Amount"></div>
+<div><label>Freight Advance Rs</label><input type="number" id="grn_freight_advance" step="0.01" placeholder="Freight Advance"></div>
+</div>
+<div class="row">
+<div><label>Unloading Point - SBU Default, Stock Yard Selected</label><input type="text" id="grn_unloading_point" placeholder="Unloading Point e.g. RN Plant, Tukdi Plant"></div>
+<div><label>Stock Yard * - Selected from Yards of this SBU</label><select id="grn_stock_yard_id" onchange="onGRNYardSelected()"><option value="">Select Yard - Yards of selected SBU</option></select></div>
+<div><label>Unloading Charges Rs</label><input type="number" id="grn_unloading_charges" step="0.01" placeholder="Unloading Charges"></div>
+</div>
+</div>
+
+<!-- Quality & Deductions -->
+<div class="form-box" style="background:#FCE8E6;border:1.5px solid #C5221F">
+<b>Quality & Deductions - Physical check daily, Chemical separate QC later - Rule can be discussed later</b>
+<div class="row">
+<div><label>Quality Status</label><select id="grn_quality_status"><option value="OK">OK</option><option value="Hold">Hold</option><option value="Rejected">Rejected</option><option value="Pending">Pending</option></select></div>
+<div><label>Quality Remark</label><input type="text" id="grn_quality_remark" placeholder="Quality Remark e.g. OK"></div>
+<div><label>Moisture %</label><input type="number" id="grn_moisture_percent" step="0.01" placeholder="Moisture %"></div>
+</div>
+<div class="row">
+<div><label>Deduction Amount Rs</label><input type="number" id="grn_deduction_amount" step="0.01" placeholder="Deduction Amount as per sheet"></div>
+<div><label>Shortage & Quality Deduction Rs</label><input type="number" id="grn_shortage_ded" step="0.01" placeholder="Shortage Ded"></div>
+<div><label>Rate Difference Rs</label><input type="number" id="grn_rate_difference" step="0.01" placeholder="Rate Difference"></div>
+</div>
+<div class="row">
+<div><label>Debit Note No</label><input type="text" id="grn_debit_note_no" placeholder="Debit Note No"></div>
+<div><label>Remarks</label><input type="text" id="grn_remarks" placeholder="Remarks"></div>
+<div><label>GRN Date * - Editable</label><input type="date" id="grn_date" value=""></div>
+</div>
+</div>
+
+<!-- Documents - 2 Docs -->
+<div class="form-box">
+<b>GRN Document Uploads - 2 Docs - Drag & Drop - Weighment Slip + Invoice/Bill - Required but allow add later</b>
+<div class="doc-grid">
+<div>
+<label>Weighment Slip * - Required, with OCR Agent</label>
+<div class="drop-zone" id="dz_grn_weighment_slip" onclick="document.getElementById('file_grn_weighment_slip').click()" ondrop="handleGRNDrop(event,'weighment_slip')" ondragover="handleGRNDragOver(event)" ondragleave="handleGRNDragLeave(event)">
+<i class="bi bi-file-earmark-arrow-up"></i>
+<div class="dz-title">Weighment Slip</div>
+<div class="dz-hint">Click or drag & drop PDF/Image - OCR Agent will scan</div>
+<div class="dz-file hidden" id="dz_file_weighment_slip">No file</div>
+<button class="dz-clear hidden" id="dz_clear_weighment_slip" onclick="clearGRNDoc('weighment_slip')">Clear</button>
+</div>
+<input type="file" id="file_grn_weighment_slip" class="hidden" accept=".pdf,.jpg,.jpeg,.png" onchange="handleGRNFileSelect(this,'weighment_slip')">
+<input type="hidden" id="doc_grn_weighment_slip">
+<div style="margin-top:6px"><button class="btn btn-y" style="font-size:10px" onclick="openGRNOCRAgent()"><i class="bi bi-robot"></i> Scan Slip with AI OCR Agent</button> <span style="font-size:10px;color:#666">Upload slip photo → AI extracts Vehicle, Gross, Tare, Net, Date, Slip No</span></div>
+</div>
+<div>
+<label>Invoice / Bill * - Required but allow later</label>
+<div class="drop-zone" id="dz_grn_invoice" onclick="document.getElementById('file_grn_invoice').click()" ondrop="handleGRNDrop(event,'invoice')" ondragover="handleGRNDragOver(event)" ondragleave="handleGRNDragLeave(event)">
+<i class="bi bi-file-earmark-text"></i>
+<div class="dz-title">Invoice / Bill</div>
+<div class="dz-hint">Click or drag & drop PDF/Image</div>
+<div class="dz-file hidden" id="dz_file_invoice">No file</div>
+<button class="dz-clear hidden" id="dz_clear_invoice" onclick="clearGRNDoc('invoice')">Clear</button>
+</div>
+<input type="file" id="file_grn_invoice" class="hidden" accept=".pdf,.jpg,.jpeg,.png" onchange="handleGRNFileSelect(this,'invoice')">
+<input type="hidden" id="doc_grn_invoice">
+</div>
+</div>
+</div>
+
+<!-- Approval - No approval wait, add to stock once created -->
+<div class="form-box" style="background:#E6F4EA;border:2px solid #1E7D32">
+<b>Stock Update - No approval wait - Add to stock once GRN is created (as you said)</b>
+<div class="row">
+<div><label>Status</label><select id="grn_status"><option value="Approved">Approved - Stock will be added</option><option value="Received">Received</option><option value="Draft">Draft</option></select></div>
+<div><label>Created By</label><input type="text" id="grn_created_by" value="Admin" placeholder="Created By - Show whoever adds GRN"></div>
+<div><label>GRN No Preview (SBU Code + FY + Seq) - Auto</label><input type="text" id="grn_no_display" readonly style="background:#E6F4EA;font-weight:900;color:#C5221F" placeholder="GRN/26-27/SBU/0001 Auto"></div>
+</div>
+<div style="font-size:11px;color:#1E7D32;margin-top:6px">✅ On Save: Accepted Qty will be added to Product stock (total_stock_mt) and to selected SBU Stock Yard opening_stock automatically — No approval needed — As you requested</div>
+</div>
+
+</div>
+<div class="modal-footer">
+<button class="btn btn-g" style="flex:1;padding:14px;font-size:14px;font-weight:800" onclick="saveGRN()"><i class="bi bi-check-circle"></i> Save GRN v4.6 - Stock Auto Update - SBU Code + PO Link + OCR</button>
+<button class="btn btn-w" onclick="closeAddGRNPopup()">Cancel</button>
+</div>
+</div>
+</div>
+
+<!-- GRN OCR Agent Modal -->
+<div id="grnOCRModal" class="modal hidden">
+<div class="modal-content" style="max-width:600px">
+<div class="modal-header"><h3><i class="bi bi-robot"></i> Weighment Slip OCR Agent - AI Scan</h3><button class="close-x" onclick="closeGRNOCRModal()">×</button></div>
+<div class="modal-body">
+<div style="background:#E8F0FE;padding:12px;border-radius:8px;margin-bottom:12px">
+<b>AI Weighment Slip Scanner - Future Weighbridge Integration Hook</b><br>
+<span style="font-size:11px">Upload or click photo of weighment slip → AI will extract: Vehicle No, Gross Kg, Tare Kg, Net Kg, Slip No, Date → Auto fill in GRN form</span><br>
+<span style="font-size:10px;color:#666">Current: Frontend Tesseract.js OCR + Manual correction - Future: Direct Weighbridge API integration (will be added in v4.7)</span>
+</div>
+<div class="drop-zone" id="dz_ocr_weighment" onclick="document.getElementById('file_ocr_weighment').click()" ondrop="handleOCRDrop(event)" ondragover="handleGRNDragOver(event)" ondragleave="handleGRNDragLeave(event)" style="min-height:160px">
+<i class="bi bi-camera"></i>
+<div class="dz-title">Weighment Slip Photo - Drag & Drop or Click to Upload / Take Photo</div>
+<div class="dz-hint">Supports JPG, PNG, PDF - AI will scan and extract data</div>
+<div class="dz-file hidden" id="dz_file_ocr">No file</div>
+</div>
+<input type="file" id="file_ocr_weighment" class="hidden" accept=".jpg,.jpeg,.png,.pdf" onchange="handleOCRFileSelect(this)">
+<div id="ocr_results" class="hidden" style="margin-top:12px;background:#FFFBEB;padding:12px;border-radius:8px;border:1px solid var(--brass)">
+<b>OCR Extracted Data - Verify & Apply:</b>
+<div class="row" style="margin-top:8px">
+<div><label>Detected Vehicle No</label><input type="text" id="ocr_vehicle_no" placeholder="Vehicle No"></div>
+<div><label>Detected Gross Kg</label><input type="number" id="ocr_gross_kg" placeholder="Gross Kg"></div>
+<div><label>Detected Tare Kg</label><input type="number" id="ocr_tare_kg" placeholder="Tare Kg"></div>
+</div>
+<div class="row">
+<div><label>Detected Net Kg</label><input type="number" id="ocr_net_kg" placeholder="Net Kg"></div>
+<div><label>Detected Slip No</label><input type="text" id="ocr_slip_no" placeholder="Slip No"></div>
+<div><label>Detected Date</label><input type="date" id="ocr_date"></div>
+</div>
+<div style="margin-top:8px"><button class="btn btn-g" onclick="applyOCRResults()">Apply to GRN Form</button> <button class="btn btn-w" onclick="clearOCR()">Clear</button></div>
+</div>
+<div id="ocr_raw_text" style="margin-top:12px;background:white;padding:10px;border-radius:6px;border:1px solid var(--line);font-size:10px;white-space:pre-wrap;max-height:150px;overflow-y:auto" class="hidden"></div>
+</div>
+<div class="modal-footer">
+<button class="btn btn-w" onclick="closeGRNOCRModal()">Close</button>
+</div>
+</div>
+</div>
+
 </body></html>
 """
 
