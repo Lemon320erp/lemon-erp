@@ -265,7 +265,7 @@ class GRN(db.Model):
     __tablename__ = 'grn'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     grn_no = db.Column(db.String(100), unique=True)
-    grn_date = db.Column(db.String(20), default=lambda: datetime.now().strftime('%Y-%m-%d'))
+    grn_date = db.Column(db.String(20), default=lambda: datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
     grn_type = db.Column(db.String(50), default='Against PO')
     po_id = db.Column(db.Integer, db.ForeignKey('po.id'), nullable=True)
     po_no = db.Column(db.String(100), default='')
@@ -1589,22 +1589,25 @@ def grn_api():
                 'vendor_id':g.vendor_id,'vendor':g.vendor,'station':g.station,
                 'vehicle_no':g.vehicle_no,'product_name':g.product_name,'material':g.material,
                 'received_qty':g.received_qty,'accepted_qty':g.accepted_qty,'net_mt':g.net_mt,'net_kg':g.net_kg,
+                'rate':g.rate,'taxable_value':g.taxable_value,'grand_total':g.grand_total,
                 'documents':docs,'has_docs':len([v for v in docs.values() if v])>0,
                 'status':g.status,'created_by':g.created_by
             })
         return jsonify(result)
     try:
         data=request.get_json() or {}
-        grn_date=data.get('grn_date') or datetime.now().strftime('%Y-%m-%d')
-        fy=get_financial_year(grn_date)
+        grn_date=data.get('grn_date') or datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        fy=get_financial_year(grn_date[:10] if 'T' in grn_date else grn_date)
         sbu_id=data.get('sbu_id')
-        sbu_name=''
+        sbu_name=data.get('sbu_name','')
         sbu_code='SBU'
         if sbu_id:
             sbu=SBU.query.get(sbu_id)
             if sbu:
                 sbu_name=sbu.sbu_name
                 sbu_code=sanitize_sbu_code(sbu.sbu_name)
+        elif data.get('sbu_name'):
+            sbu_code=sanitize_sbu_code(data.get('sbu_name'))
         existing_count=GRN.query.filter(GRN.grn_no.like(f"GRN/{fy}/{sbu_code}/%")).count()+1
         grn_no=data.get('grn_no') or generate_grn_no(fy, sbu_code, existing_count)
         while GRN.query.filter_by(grn_no=grn_no).first():
@@ -1620,10 +1623,14 @@ def grn_api():
                 station=data.get('station') or v.station or ''
         product_id=data.get('product_id')
         product_name=data.get('product_name','')
+        product_code=data.get('product_code','')
+        hsn_code=data.get('hsn_code','')
         if product_id:
             prod=Product.query.get(product_id)
             if prod:
                 product_name=prod.name
+                product_code=prod.product_code
+                hsn_code=prod.hsn_code
         gross_kg=float(data.get('gross_kg') or 0)
         tare_kg=float(data.get('tare_kg') or 0)
         net_kg=gross_kg - tare_kg if gross_kg and tare_kg else float(data.get('net_kg') or 0)
@@ -1631,20 +1638,33 @@ def grn_api():
         received_qty=float(data.get('received_qty') or net_mt or 0)
         accepted_qty=float(data.get('accepted_qty') or received_qty or 0)
         rate=float(data.get('rate') or 0)
-        taxable=round(accepted_qty*rate,2) if accepted_qty and rate else 0
+        taxable=round(accepted_qty*rate,2) if accepted_qty and rate else float(data.get('taxable_value') or 0)
+        cgst_percent=float(data.get('cgst_percent') or 0)
+        sgst_percent=float(data.get('sgst_percent') or 0)
+        igst_percent=float(data.get('igst_percent') or 0)
+        cgst_amount=round(taxable*cgst_percent/100,2) if cgst_percent else float(data.get('cgst_amount') or 0)
+        sgst_amount=round(taxable*sgst_percent/100,2) if sgst_percent else float(data.get('sgst_amount') or 0)
+        igst_amount=round(taxable*igst_percent/100,2) if igst_percent else float(data.get('igst_amount') or 0)
+        grand_total=round(taxable+cgst_amount+sgst_amount+igst_amount,2) if taxable else float(data.get('grand_total') or 0)
         grn=GRN(
             grn_no=grn_no,grn_date=grn_date,grn_type=data.get('grn_type','Against PO'),
             po_id=data.get('po_id'),po_no=data.get('po_no',''),
             sbu_id=sbu_id,sbu_name=sbu_name,sbu_code=sbu_code,
             vendor_id=vendor_id,vendor=vendor_name,station=station,
             vehicle_no=data.get('vehicle_no',''),driver_name=data.get('driver_name',''),
-            bill_no=data.get('bill_no',''),wayment_slip_no=data.get('wayment_slip_no',''),
-            product_id=product_id,product_name=product_name,material=data.get('material') or product_name,
-            received_qty=received_qty,accepted_qty=accepted_qty,rate=rate,taxable_value=taxable,grand_total=taxable,
+            driver_mobile=data.get('driver_mobile',''),transporter=data.get('transporter',''),
+            lr_no=data.get('lr_no',''),eway_bill=data.get('eway_bill',''),
+            bill_no=data.get('bill_no',''),invoice_no=data.get('invoice_no','') or data.get('bill_no',''),
+            wayment_slip_no=data.get('wayment_slip_no',''),
+            product_id=product_id,product_name=product_name,product_code=product_code,hsn_code=hsn_code,material=data.get('material') or product_name,
+            unit=data.get('unit','MT'),
+            received_qty=received_qty,accepted_qty=accepted_qty,rate=rate,taxable_value=taxable,
+            cgst_percent=cgst_percent,cgst_amount=cgst_amount,sgst_percent=sgst_percent,sgst_amount=sgst_amount,igst_percent=igst_percent,igst_amount=igst_amount,grand_total=grand_total,
             gross_kg=gross_kg,tare_kg=tare_kg,net_kg=net_kg,net_mt=net_mt,
+            supplier_qty=float(data.get('supplier_qty') or 0),qty_differ=float(data.get('qty_differ') or 0),
             stock_yard_id=int(data.get('stock_yard_id') or 0),stock_yard_name=data.get('stock_yard_name',''),
             quality_status=data.get('quality_status','OK'),documents=json.dumps(data.get('documents',{})),
-            status='Approved',created_by=data.get('created_by','Admin')
+            status=data.get('status','Approved'),created_by=data.get('created_by','Admin')
         )
         db.session.add(grn)
         db.session.commit()
@@ -1656,7 +1676,7 @@ def grn_api():
                     db.session.commit()
         except Exception as e:
             print(f"Stock update failed: {e}")
-        return jsonify(id=grn.id, grn_no=grn.grn_no, accepted_qty=grn.accepted_qty)
+        return jsonify(id=grn.id, grn_no=grn.grn_no, accepted_qty=grn.accepted_qty, grand_total=grn.grand_total)
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -1671,11 +1691,11 @@ def grn_one(gid):
             docs=json.loads(g.documents) if g.documents else {}
         except:
             docs={}
-        return jsonify(id=g.id,grn_no=g.grn_no,grn_date=g.grn_date,grn_type=g.grn_type,po_id=g.po_id,po_no=g.po_no,sbu_id=g.sbu_id,sbu_name=g.sbu_name,sbu_code=g.sbu_code,vendor_id=g.vendor_id,vendor=g.vendor,station=g.station,vehicle_no=g.vehicle_no,product_id=g.product_id,product_name=g.product_name,material=g.material,received_qty=g.received_qty,accepted_qty=g.accepted_qty,rate=g.rate,gross_kg=g.gross_kg,tare_kg=g.tare_kg,net_kg=g.net_kg,net_mt=g.net_mt,stock_yard_id=g.stock_yard_id,documents=docs,status=g.status,created_by=g.created_by)
+        return jsonify(id=g.id,grn_no=g.grn_no,grn_date=g.grn_date,grn_type=g.grn_type,po_id=g.po_id,po_no=g.po_no,sbu_id=g.sbu_id,sbu_name=g.sbu_name,sbu_code=g.sbu_code,vendor_id=g.vendor_id,vendor=g.vendor,station=g.station,vehicle_no=g.vehicle_no,driver_name=g.driver_name,driver_mobile=g.driver_mobile,transporter=g.transporter,lr_no=g.lr_no,eway_bill=g.eway_bill,bill_no=g.bill_no,wayment_slip_no=g.wayment_slip_no,product_id=g.product_id,product_name=g.product_name,product_code=g.product_code,hsn_code=g.hsn_code,material=g.material,unit=g.unit,received_qty=g.received_qty,accepted_qty=g.accepted_qty,supplier_qty=g.supplier_qty,qty_differ=g.qty_differ,rate=g.rate,taxable_value=g.taxable_value,cgst_percent=g.cgst_percent,cgst_amount=g.cgst_amount,sgst_percent=g.sgst_percent,sgst_amount=g.sgst_amount,igst_percent=g.igst_percent,igst_amount=g.igst_amount,grand_total=g.grand_total,gross_kg=g.gross_kg,tare_kg=g.tare_kg,net_kg=g.net_kg,net_mt=g.net_mt,stock_yard_id=g.stock_yard_id,stock_yard_name=g.stock_yard_name,documents=docs,status=g.status,created_by=g.created_by)
     if request.method=='PUT':
         try:
             data=request.get_json() or {}
-            for field in ['grn_date','grn_type','po_id','po_no','sbu_id','sbu_name','vendor_id','vendor','station','vehicle_no','product_id','product_name','material','received_qty','accepted_qty','rate','gross_kg','tare_kg','net_kg','net_mt','stock_yard_id','stock_yard_name','quality_status','remarks','status']:
+            for field in ['grn_date','grn_type','po_id','po_no','sbu_id','sbu_name','vendor_id','vendor','station','vehicle_no','driver_name','driver_mobile','transporter','lr_no','eway_bill','bill_no','wayment_slip_no','product_id','product_name','product_code','hsn_code','material','unit','received_qty','accepted_qty','supplier_qty','qty_differ','rate','taxable_value','cgst_percent','cgst_amount','sgst_percent','sgst_amount','igst_percent','igst_amount','grand_total','gross_kg','tare_kg','net_kg','net_mt','stock_yard_id','stock_yard_name','status']:
                 if field in data and hasattr(g, field):
                     setattr(g, field, data[field])
             if 'documents' in data:
@@ -1697,10 +1717,13 @@ def grn_one(gid):
 @app.route('/api/grn/po_list', methods=['GET'])
 def grn_po_list():
     search=(request.args.get('search') or '').lower()
-    pos=PO.query.order_by(PO.id.desc()).limit(100).all()
+    vendor_id=request.args.get('vendor_id','')
+    pos=PO.query.order_by(PO.id.desc()).limit(200).all()
     result=[]
     for p in pos:
-        if search and not (search in (p.po_no or '').lower() or search in (p.vendor or '').lower()):
+        if vendor_id and str(p.vendor_id)!=str(vendor_id):
+            continue
+        if search and not (search in (p.po_no or '').lower() or search in (p.vendor or '').lower() or search in (p.sbu_name or '').lower()):
             continue
         try:
             items=json.loads(p.items) if p.items else []
@@ -1908,7 +1931,7 @@ input,select,textarea{padding:8px 10px;border-radius:7px;border:1.5px solid var(
 </div>
 </div>
 
-<!-- GRN MODULE v4.6 - Only GRN Module Added - Other Modules Locked to v4.5.2 -->
+<!-- GRN MODULE v4.6.2 - Only GRN Module - No other modules touched -->
 <div id="grn" class="tabcontent hidden">
 <div class="card" style="text-align:center;padding:18px">
 <h1 style="font-size:22px;font-weight:900"><i class="bi bi-truck-flatbed"></i> Goods Receipt Note</h1>
@@ -1923,7 +1946,7 @@ input,select,textarea{padding:8px 10px;border-radius:7px;border:1.5px solid var(
 <div><label style="font-size:10px">Status</label><select id="grn_status_filter" onchange="loadGRNs()"><option value="">All Status</option><option value="Approved">Approved</option><option value="Received">Received</option></select></div>
 <div><label style="font-size:10px">SBU</label><select id="grn_sbu_filter" onchange="loadGRNs()"><option value="">All SBUs</option></select></div>
 <div><label style="font-size:10px">Vendor</label><select id="grn_vendor_filter" onchange="loadGRNs()"><option value="">All Vendors</option></select></div>
-<div><button class="btn btn-w" onclick="clearGRNFilters()">Clear</button></div>
+<div><button class="btn btn-w" onclick="clearGRNFilters()">Clear Filters</button></div>
 </div>
 <div style="display:flex;gap:12px;margin:8px 0">
 <div class="card kpi" style="flex:1"><div>Total GRNs</div><div class="val" id="grnTotalCount">0</div></div>
@@ -2910,21 +2933,17 @@ async function uploadBackupData(){
 async function loadDash(){ let r=await fetch('/api/inventory/combined'); let d=await r.json(); document.getElementById('totalVal').innerText='Rs '+(d.total_value_lakh||0).toFixed(2)+' Lakh'; let rc=await fetch('/api/product_categories'); let cats=await rc.json(); document.getElementById('catCountDash').innerText=cats.length; let rp=await fetch('/api/products'); let prods=await rp.json(); document.getElementById('prodCountDash').innerText=prods.length; let rs=await fetch('/api/sbus'); let sbus=await rs.json(); document.getElementById('sbuCountDash').innerText=sbus.length;}
 async function loadStock(){ let r=await fetch('/api/inventory/combined'); let d=await r.json(); document.getElementById('rawTbl').innerHTML='<h4>Raw</h4><table><tr><th>Code</th><th>Name</th><th>MT</th></tr>'+d.raw.map(x=>`<tr><td>${x.product_code}</td><td>${x.name}</td><td>${x.total_mt}</td></tr>`).join('')+'</table>'; document.getElementById('finTbl').innerHTML='<h4>Finished</h4><table><tr><th>Code</th><th>Name</th><th>MT</th></tr>'+d.finished.map(x=>`<tr><td>${x.product_code}</td><td>${x.name}</td><td>${x.total_mt}</td></tr>`).join('')+'</table>';}
 
-
-
-// ========== GRN MODULE v4.6.2 - Updated as per user feedback - Only GRN Module - No other modules touched ==========
+// ========== GRN MODULE v4.6.2 - Fixed - No leak - Only GRN Module ==========
 let grnPOsCache=[]; let grnProductsCache=[]; let grnSBUsCache=[]; let grnVendorsCache=[]; let grnIsFullscreen=false; let grnIsMinimized=false;
 
 function updateGRNDateTime(){
   let now=new Date();
   let dateStr=now.toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true});
   let el=document.getElementById('grn_live_datetime');
-  if(el) el.innerText=dateStr + ' - GRN DateTime';
+  if(el) el.innerText=dateStr;
   let dateInput=document.getElementById('grn_date');
   if(dateInput && !dateInput.value){
-    // Set datetime-local to now
-    let iso=now.toISOString().slice(0,16);
-    dateInput.value=iso;
+    dateInput.value=now.toISOString().slice(0,16);
   }
 }
 setInterval(updateGRNDateTime, 1000);
@@ -2940,97 +2959,46 @@ function restoreGRNModal(){
   grnIsMinimized=false;
 }
 function toggleGRNFullscreen(){
-  let modalContent=document.getElementById('grnModalContent');
+  let mc=document.getElementById('grnModalContent');
   if(!grnIsFullscreen){
-    modalContent.style.maxWidth='98%';
-    modalContent.style.width='98%';
-    modalContent.style.height='95vh';
-    modalContent.style.maxHeight='95vh';
-    document.getElementById('grnModalBody').style.maxHeight='80vh';
-    document.getElementById('grnModalBody').style.overflowY='auto';
+    mc.style.maxWidth='98%'; mc.style.width='98%'; mc.style.height='95vh'; mc.style.maxHeight='95vh';
+    document.getElementById('grnModalBody').style.maxHeight='80vh'; document.getElementById('grnModalBody').style.overflowY='auto';
     grnIsFullscreen=true;
-    document.getElementById('grn_maximize_btn').innerText='⛶';
-    document.getElementById('grn_maximize_btn').title='Exit Full Window';
   } else {
-    modalContent.style.maxWidth='1100px';
-    modalContent.style.width='';
-    modalContent.style.height='';
-    modalContent.style.maxHeight='';
-    document.getElementById('grnModalBody').style.maxHeight='';
-    document.getElementById('grnModalBody').style.overflowY='';
+    mc.style.maxWidth='1100px'; mc.style.width=''; mc.style.height=''; mc.style.maxHeight='';
+    document.getElementById('grnModalBody').style.maxHeight=''; document.getElementById('grnModalBody').style.overflowY='';
     grnIsFullscreen=false;
-    document.getElementById('grn_maximize_btn').innerText='⛶';
-    document.getElementById('grn_maximize_btn').title='Full Window';
   }
 }
 
 function openAddGRNPopup(){
   document.getElementById('grnModal').classList.remove('hidden');
   document.getElementById('grn_minimized_bar').classList.add('hidden');
-  grnIsMinimized=false;
-  grnIsFullscreen=false;
+  grnIsMinimized=false; grnIsFullscreen=false;
   document.getElementById('grnModalContent').style.maxWidth='1100px';
-  document.getElementById('grnModalContent').style.width='';
-  document.getElementById('grnModalContent').style.height='';
   document.getElementById('grn_id').value='';
   updateGRNDateTime();
-  let now=new Date();
-  document.getElementById('grn_date').value=now.toISOString().slice(0,16);
   document.getElementById('grn_created_by').value='Admin';
   document.getElementById('grn_po_search').value='';
-  document.getElementById('grn_po_dropdown').style.display='none';
-  document.getElementById('grn_po_dropdown').innerHTML='';
-  document.getElementById('grn_po_id').innerHTML='<option value="">Select PO</option>';
-  document.getElementById('grn_po_preview').innerHTML='';
+  let dd=document.getElementById('grn_po_dropdown'); if(dd){ dd.style.display='none'; dd.innerHTML=''; }
   document.getElementById('grn_vendor_search').value='';
-  document.getElementById('grn_sbu_id').value='';
-  document.getElementById('grn_sbu_code_preview').innerText='SBU';
-  document.getElementById('grn_no_preview').innerText='GRN/26-27/SBU/0001 Auto';
-  document.getElementById('grn_no_display').value='GRN/26-27/SBU/0001 Auto';
-  document.getElementById('grn_vendor_id').value='';
-  document.getElementById('grn_station').value='';
-  document.getElementById('grn_product_id').value='';
-  document.getElementById('grn_bill_product_code').value='';
-  document.getElementById('grn_bill_product_name').value='';
-  document.getElementById('grn_bill_hsn_code').value='';
-  document.getElementById('grn_gross_kg').value='';
-  document.getElementById('grn_tare_kg').value='';
-  document.getElementById('grn_net_wt_display').value='';
-  document.getElementById('grn_net_kg').value='';
-  document.getElementById('grn_net_mt').value='';
-  document.getElementById('grn_supplier_qty').value='';
-  document.getElementById('grn_bill_qty').value='';
-  document.getElementById('grn_accepted_qty').value='';
-  document.getElementById('grn_rate').value='';
-  document.getElementById('grn_taxable_value').value='';
-  document.getElementById('grn_cgst_percent').value='';
-  document.getElementById('grn_cgst_amount').value='';
-  document.getElementById('grn_sgst_percent').value='';
-  document.getElementById('grn_sgst_amount').value='';
-  document.getElementById('grn_igst_percent').value='';
-  document.getElementById('grn_igst_amount').value='';
-  document.getElementById('grn_grand_total').value='';
   loadGRNPOs(); loadGRNSBUs(); loadGRNVendors(); loadGRNProducts();
 }
-function closeAddGRNPopup(){ document.getElementById('grnModal').classList.add('hidden'); document.getElementById('grn_minimized_bar').classList.add('hidden'); let dd=document.getElementById('grn_po_dropdown'); if(dd) dd.style.display='none'; grnIsMinimized=false; }
-function onGRNTypeChanged(){ let type=document.getElementById('grn_type').value; if(type==='Direct'){ document.getElementById('grn_po_search').placeholder='Direct GRN - No PO needed'; } else { document.getElementById('grn_po_search').placeholder='Type PO No e.g. PO/26-27/ - Searchable'; } }
+function closeAddGRNPopup(){ document.getElementById('grnModal').classList.add('hidden'); document.getElementById('grn_minimized_bar').classList.add('hidden'); let dd=document.getElementById('grn_po_dropdown'); if(dd) dd.style.display='none'; }
+function onGRNTypeChanged(){}
 
 async function loadGRNFilters(){
   try{
     let sbus=await fetch('/api/sbus').then(r=>r.json());
     grnSBUsCache=sbus;
-    let sbuFilter=document.getElementById('grn_sbu_filter');
-    let sbuSelect=document.getElementById('grn_sbu_id');
-    if(sbuFilter) sbuFilter.innerHTML='<option value="">All SBUs</option>'+sbus.map(s=>`<option value="${s.id}">${s.sbu_name}</option>`).join('');
-    if(sbuSelect) sbuSelect.innerHTML='<option value="">Select SBU - Auto from PO</option>'+sbus.map(s=>`<option value="${s.id}">${s.sbu_name}</option>`).join('');
+    let sf=document.getElementById('grn_sbu_filter'); if(sf) sf.innerHTML='<option value="">All SBUs</option>'+sbus.map(s=>`<option value="${s.id}">${s.sbu_name}</option>`).join('');
+    let ss=document.getElementById('grn_sbu_id'); if(ss) ss.innerHTML='<option value="">Select SBU - Auto from PO</option>'+sbus.map(s=>`<option value="${s.id}">${s.sbu_name}</option>`).join('');
   }catch(e){}
   try{
     let vendors=await fetch('/api/vendors').then(r=>r.json());
     grnVendorsCache=vendors;
-    let vendorFilter=document.getElementById('grn_vendor_filter');
-    let vendorSelect=document.getElementById('grn_vendor_id');
-    if(vendorFilter) vendorFilter.innerHTML='<option value="">All Vendors</option>'+vendors.map(v=>`<option value="${v.id}">${v.name}</option>`).join('');
-    if(vendorSelect) vendorSelect.innerHTML='<option value="">Select Supplier - Auto from PO</option>'+vendors.map(v=>`<option value="${v.id}">${v.name} - ${v.station||''}</option>`).join('');
+    let vf=document.getElementById('grn_vendor_filter'); if(vf) vf.innerHTML='<option value="">All Vendors</option>'+vendors.map(v=>`<option value="${v.id}">${v.name}</option>`).join('');
+    let vs=document.getElementById('grn_vendor_id'); if(vs) vs.innerHTML='<option value="">Select Supplier</option>'+vendors.map(v=>`<option value="${v.id}">${v.name} - ${v.station||''}</option>`).join('');
   }catch(e){}
 }
 
@@ -3038,8 +3006,6 @@ async function loadGRNPOs(){
   try{
     let pos=await fetch('/api/grn/po_list').then(r=>r.json());
     grnPOsCache=pos;
-    let sel=document.getElementById('grn_po_id');
-    if(sel) sel.innerHTML='<option value="">Select PO - '+pos.length+' POs</option>'+pos.map(p=>`<option value="${p.id}">${p.po_no} - ${p.vendor} - ${p.sbu_name}</option>`).join('');
   }catch(e){}
 }
 
@@ -3048,11 +3014,11 @@ function filterGRNVendors(){
   let sel=document.getElementById('grn_vendor_id');
   if(!sel) return;
   if(!search){
-    sel.innerHTML='<option value="">Select Supplier - Auto from PO</option>'+grnVendorsCache.map(v=>`<option value="${v.id}">${v.name} - ${v.station||''}</option>`).join('');
+    sel.innerHTML='<option value="">Select Supplier</option>'+grnVendorsCache.map(v=>`<option value="${v.id}">${v.name} - ${v.station||''}</option>`).join('');
     return;
   }
-  let filtered=grnVendorsCache.filter(v=>(v.name||'').toLowerCase().includes(search) || (v.station||'').toLowerCase().includes(search) || (v.vendor_code||'').toLowerCase().includes(search));
-  sel.innerHTML='<option value="">Select Supplier - '+filtered.length+' found for "'+search+'"</option>'+filtered.map(v=>`<option value="${v.id}">${v.name} - ${v.station||''}</option>`).join('');
+  let filtered=grnVendorsCache.filter(v=>(v.name||'').toLowerCase().includes(search));
+  sel.innerHTML='<option value="">Select Supplier - '+filtered.length+' found</option>'+filtered.map(v=>`<option value="${v.id}">${v.name} - ${v.station||''}</option>`).join('');
 }
 
 function onGRNSupplierSelected(){
@@ -3062,53 +3028,34 @@ function onGRNSupplierSelected(){
   if(vendor){
     document.getElementById('grn_vendor_name').value=vendor.name;
     document.getElementById('grn_station').value=vendor.station||'';
-    // Show relevant Open POs of this supplier
     let pos=grnPOsCache.filter(p=>String(p.vendor_id)===String(vendorId));
-    let dropdown=document.getElementById('grn_po_dropdown');
-    let searchInput=document.getElementById('grn_po_search');
+    let dd=document.getElementById('grn_po_dropdown');
     if(pos.length>0){
-      searchInput.placeholder='Showing '+pos.length+' Open POs of '+vendor.name+' - Type to filter or Select';
-      dropdown.innerHTML=pos.slice(0,20).map(p=>`<div style="padding:8px 10px;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:11px" onclick="selectGRNPO(${p.id})"><b>${p.po_no}</b> - ${p.sbu_name} - ${p.material||''}<br><span style="font-size:10px;color:#666">${p.po_date||''} - ${p.vendor}</span></div>`).join('');
-      dropdown.style.display='block';
-      document.getElementById('grn_po_preview').innerHTML='<span style="color:#1A2E1E;font-weight:600">Selected Supplier: '+vendor.name+' - Found '+pos.length+' Open POs - Select PO from dropdown or type PO No</span>';
-    } else {
-      searchInput.placeholder='No Open POs for '+vendor.name+' - Direct GRN or Type PO No';
-      dropdown.style.display='none';
-      document.getElementById('grn_po_preview').innerHTML='<span style="color:#C5221F">No Open POs for '+vendor.name+' - You can do Direct GRN</span>';
+      dd.innerHTML=pos.slice(0,20).map(p=>`<div style="padding:8px 10px;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:11px" onclick="selectGRNPO(${p.id})"><b>${p.po_no}</b> - ${p.sbu_name}<br><span style="font-size:10px;color:#666">${p.material||''}</span></div>`).join('');
+      dd.style.display='block';
     }
   }
 }
 
 function searchGRNPOs(){
   let search=(document.getElementById('grn_po_search').value||'').toLowerCase().trim();
-  let dropdown=document.getElementById('grn_po_dropdown');
+  let dd=document.getElementById('grn_po_dropdown');
   let vendorId=document.getElementById('grn_vendor_id').value;
   let filtered=grnPOsCache;
-  
-  // If supplier selected first, filter POs of that supplier
-  if(vendorId){
-    filtered=filtered.filter(p=>String(p.vendor_id)===String(vendorId));
-  }
-  
+  if(vendorId) filtered=filtered.filter(p=>String(p.vendor_id)===String(vendorId));
   if(!search){
-    if(filtered.length>0 && filtered.length<=20){
-      dropdown.innerHTML=filtered.map(p=>`<div style="padding:8px 10px;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:11px" onclick="selectGRNPO(${p.id})"><b>${p.po_no}</b> - ${p.vendor} - ${p.sbu_name}<br><span style="font-size:10px;color:#666">${p.material||''} - ${p.po_date||''}</span></div>`).join('');
-      dropdown.style.display='block';
-    } else {
-      dropdown.style.display='none';
-    }
+    if(filtered.length>0){
+      dd.innerHTML=filtered.slice(0,20).map(p=>`<div style="padding:8px 10px;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:11px" onclick="selectGRNPO(${p.id})"><b>${p.po_no}</b> - ${p.vendor} - ${p.sbu_name}</div>`).join('');
+      dd.style.display='block';
+    } else dd.style.display='none';
     return;
   }
-  
-  filtered=filtered.filter(p=>(p.po_no||'').toLowerCase().includes(search) || (p.vendor||'').toLowerCase().includes(search) || (p.sbu_name||'').toLowerCase().includes(search) || (p.material||'').toLowerCase().includes(search));
-  
+  filtered=filtered.filter(p=>(p.po_no||'').toLowerCase().includes(search) || (p.vendor||'').toLowerCase().includes(search));
   if(filtered.length===0){
-    dropdown.innerHTML='<div style="padding:8px;font-size:11px;color:#666">No POs found for "'+search+'"</div>';
-    dropdown.style.display='block';
-    return;
+    dd.innerHTML='<div style="padding:8px;font-size:11px">No POs found</div>'; dd.style.display='block'; return;
   }
-  dropdown.innerHTML=filtered.slice(0,20).map(p=>`<div style="padding:8px 10px;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:11px" onclick="selectGRNPO(${p.id})"><b>${p.po_no}</b> - ${p.vendor} - ${p.sbu_name}<br><span style="font-size:10px;color:#666">${p.material||''} - ${p.po_date||''}</span></div>`).join('');
-  dropdown.style.display='block';
+  dd.innerHTML=filtered.slice(0,20).map(p=>`<div style="padding:8px 10px;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:11px" onclick="selectGRNPO(${p.id})"><b>${p.po_no}</b> - ${p.vendor}</div>`).join('');
+  dd.style.display='block';
 }
 
 function selectGRNPO(poId){
@@ -3117,73 +3064,54 @@ function selectGRNPO(poId){
   document.getElementById('grn_po_search').value=po.po_no;
   document.getElementById('grn_po_id').value=po.id;
   document.getElementById('grn_po_dropdown').style.display='none';
-  document.getElementById('grn_po_preview').innerHTML='<b>'+po.po_no+'</b> - '+po.vendor+' - '+po.sbu_name+' - '+(po.material||'')+' - Rate: '+(po.items && po.items[0] ? po.items[0].rate : '')+' - SBU: '+po.sbu_name;
-  document.getElementById('grn_po_date').value=po.po_date||'';
-  
-  // Auto fetch Supplier Name from PO No (bidirectional)
+  document.getElementById('grn_po_preview').innerHTML='<b>'+po.po_no+'</b> - '+po.vendor;
   if(po.vendor_id){
     document.getElementById('grn_vendor_id').value=po.vendor_id;
-    document.getElementById('grn_vendor_search').value=po.vendor||'';
     document.getElementById('grn_vendor_name').value=po.vendor||'';
-    onGRNSupplierSelected();
+    let v=grnVendorsCache.find(x=>String(x.id)===String(po.vendor_id));
+    if(v) document.getElementById('grn_station').value=v.station||'';
   }
-  
-  // Auto fetch SBU from PO No
   if(po.sbu_id){
     document.getElementById('grn_sbu_id').value=po.sbu_id;
     onGRNSBUChanged();
   }
-  
-  // Auto fetch Station from PO No (from vendor)
-  let vendor=grnVendorsCache.find(v=>String(v.id)===String(po.vendor_id));
-  if(vendor){
-    document.getElementById('grn_station').value=vendor.station||'';
-  }
-  
-  // Auto fetch Product - Remove extra text, data auto from PO No
   if(po.items && po.items.length>0){
-    let prodSelect=document.getElementById('grn_product_id');
+    let prodSel=document.getElementById('grn_product_id');
     if(po.items.length===1){
-      let item=po.items[0];
-      prodSelect.innerHTML='<option value="'+(item.product_id||'')+'">'+(item.product_name||po.material||'')+'</option>';
-      prodSelect.value=item.product_id||'';
+      let it=po.items[0];
+      prodSel.innerHTML='<option value="'+(it.product_id||'')+'">'+(it.product_name||'')+'</option>';
+      prodSel.value=it.product_id||'';
       onGRNProductSelected();
-      document.getElementById('grn_product_info').innerHTML='Auto from PO: '+item.product_name;
+      document.getElementById('grn_rate').value=it.rate||'';
+      document.getElementById('grn_unit').value=it.uom||'MT';
     } else {
-      prodSelect.innerHTML='<option value="">Select Product from PO - '+po.items.length+' products in this PO</option>'+po.items.map(item=>`<option value="${item.product_id||''}">${item.product_name||''}</option>`).join('');
-      document.getElementById('grn_product_info').innerHTML='PO has '+po.items.length+' products - Select one (PO products only)';
+      prodSel.innerHTML='<option value="">Select Product from PO - '+po.items.length+' products</option>'+po.items.map(it=>`<option value="${it.product_id||''}">${it.product_name||''}</option>`).join('');
     }
   }
 }
 
-function onGRNPOSelected(){ let poId=document.getElementById('grn_po_id').value; if(poId) selectGRNPO(poId); }
-async function loadGRNSBUs(){ await loadGRNFilters(); }
 async function onGRNSBUChanged(){
   let sbuId=document.getElementById('grn_sbu_id').value;
   let sbu=grnSBUsCache.find(s=>String(s.id)===String(sbuId));
   if(sbu){
     document.getElementById('grn_sbu_name').value=sbu.sbu_name;
-    let sbuCode=sbu.sbu_name.substring(0,3).toUpperCase().replace(/[^A-Z0-9]/g,'');
-    document.getElementById('grn_sbu_code_preview').innerText=sbuCode;
-    document.getElementById('grn_no_preview').innerText='GRN/26-27/'+sbuCode+'/XXXX';
-    document.getElementById('grn_no_display').value='GRN/26-27/'+sbuCode+'/XXXX Auto';
+    let code=sbu.sbu_name.substring(0,3).toUpperCase().replace(/[^A-Z0-9]/g,'');
+    document.getElementById('grn_sbu_code_preview').innerText=code;
+    document.getElementById('grn_no_preview').innerText='GRN/26-27/'+code+'/XXXX';
+    document.getElementById('grn_no_display').value='GRN/26-27/'+code+'/XXXX Auto';
     try{
       let yards=await fetch('/api/grn/sbu_yards/'+sbuId).then(r=>r.json());
-      let yardSel=document.getElementById('grn_stock_yard_id');
-      if(yardSel) yardSel.innerHTML='<option value="">Select Yard - '+yards.length+' yards of '+sbu.sbu_name+'</option>'+yards.map(y=>`<option value="${y.id}">${y.yard_name}</option>`).join('');
+      let ys=document.getElementById('grn_stock_yard_id');
+      if(ys) ys.innerHTML='<option value="">Select Yard - '+yards.length+' yards</option>'+yards.map(y=>`<option value="${y.id}">${y.yard_name}</option>`).join('');
     }catch(e){}
   }
 }
+async function loadGRNSBUs(){ await loadGRNFilters(); }
 async function loadGRNVendors(){ await loadGRNFilters(); }
-function onGRNVendorChanged(){ let vendorId=document.getElementById('grn_vendor_id').value; let vendor=grnVendorsCache.find(v=>String(v.id)===String(vendorId)); if(vendor){ document.getElementById('grn_vendor_name').value=vendor.name; document.getElementById('grn_station').value=vendor.station||''; } }
 async function loadGRNProducts(){
   try{
     let prods=await fetch('/api/products').then(r=>r.json());
     grnProductsCache=prods;
-    let sel=document.getElementById('grn_product_id');
-    if(sel && sel.options.length<=1){
-      sel.innerHTML='<option value="">Select Product - Auto from PO</option>'+prods.map(p=>`<option value="${p.id}">${p.product_code} - ${p.name}</option>`).join('');
-    }
   }catch(e){}
 }
 function onGRNProductSelected(){
@@ -3196,27 +3124,9 @@ function onGRNProductSelected(){
     document.getElementById('grn_bill_product_code').value=prod.product_code||'';
     document.getElementById('grn_bill_product_name').value=prod.name||'';
     document.getElementById('grn_bill_hsn_code').value=prod.hsn_code||'';
-    document.getElementById('grn_product_info').innerHTML='Product: '+prod.name+' ('+prod.product_code+')';
-  } else {
-    let poId=document.getElementById('grn_po_id').value;
-    let po=grnPOsCache.find(p=>String(p.id)===String(poId));
-    if(po && po.items){
-      let item=po.items.find(it=>String(it.product_id)===String(prodId));
-      if(item){
-        document.getElementById('grn_material').value=item.product_name||'';
-        document.getElementById('grn_rate').value=item.rate||'';
-        document.getElementById('grn_unit').value=item.uom||'MT';
-        document.getElementById('grn_product_code').value=item.product_code||'';
-        document.getElementById('grn_bill_product_code').value=item.product_code||'';
-        document.getElementById('grn_bill_product_name').value=item.product_name||'';
-        document.getElementById('grn_bill_hsn_code').value=item.hsn_code||'';
-        document.getElementById('grn_bill_qty').value=document.getElementById('grn_accepted_qty').value||'';
-        calcGRNAmount();
-      }
-    }
   }
 }
-function onGRNYardSelected(){ let yardId=document.getElementById('grn_stock_yard_id').value; let yardText=document.getElementById('grn_stock_yard_id').selectedOptions[0]?.text||''; document.getElementById('grn_stock_yard_name').value=yardText; }
+function onGRNYardSelected(){ let t=document.getElementById('grn_stock_yard_id').selectedOptions[0]?.text||''; document.getElementById('grn_stock_yard_name').value=t; }
 
 function calcGRNWeighment(){
   let gross=parseFloat(document.getElementById('grn_gross_kg').value)||0;
@@ -3224,69 +3134,45 @@ function calcGRNWeighment(){
   if(gross && tare){
     let net=gross - tare;
     let netMT=net/1000;
-    // Formula: Net Kg = Gross Kg - Tare Kg
     document.getElementById('grn_net_kg').value=net.toFixed(3);
     document.getElementById('grn_net_mt').value=netMT.toFixed(3);
-    // Net Wt display with MT conversion in same field: Net Wt = GRN Qty auto
-    document.getElementById('grn_net_wt_display').value=net.toFixed(3)+' Kg = '+netMT.toFixed(3)+' MT (GRN Qty)';
-    // Auto fill Bill Qty and Accepted as Net MT (since net = received = GRN Qty)
+    document.getElementById('grn_net_wt_display').value=net.toFixed(3)+' Kg = '+netMT.toFixed(3)+' MT';
     if(!document.getElementById('grn_bill_qty').value) document.getElementById('grn_bill_qty').value=netMT.toFixed(3);
     if(!document.getElementById('grn_accepted_qty').value) document.getElementById('grn_accepted_qty').value=netMT.toFixed(3);
     if(!document.getElementById('grn_received_qty').value) document.getElementById('grn_received_qty').value=netMT.toFixed(3);
-    // Qty Differ: Supplier Qty - Net Qty
     let supplierQty=parseFloat(document.getElementById('grn_supplier_qty').value)||0;
     if(supplierQty){
       let differ=supplierQty - netMT;
       document.getElementById('grn_qty_differ').value=differ.toFixed(3);
-      document.getElementById('grn_qty_differ_display').value=differ.toFixed(3)+' MT ('+(supplierQty ? (differ/supplierQty*100).toFixed(2)+'%' : '')+') - Formula: Supplier - Net';
+      document.getElementById('grn_qty_differ_display').value=differ.toFixed(3)+' MT';
     }
     calcGRNAmount();
   }
 }
 
 function calcGRNAmount(){
-  // Formula Checked: Taxable Value = Rate * Qty
   let qty=parseFloat(document.getElementById('grn_bill_qty').value)||parseFloat(document.getElementById('grn_accepted_qty').value)||parseFloat(document.getElementById('grn_net_mt').value)||0;
   let rate=parseFloat(document.getElementById('grn_rate').value)||0;
   if(qty && rate){
     let taxable=qty * rate;
     document.getElementById('grn_taxable_value').value=taxable.toFixed(2);
-    document.getElementById('grn_bill_qty').value=qty.toFixed(3);
-    
-    // Tax Calculations - Formula Checked
-    let cgstPercent=parseFloat(document.getElementById('grn_cgst_percent').value)||0;
-    let sgstPercent=parseFloat(document.getElementById('grn_sgst_percent').value)||0;
-    let igstPercent=parseFloat(document.getElementById('grn_igst_percent').value)||0;
-    
-    // CGST Amount = Taxable * CGST% /100
-    let cgstAmount=cgstPercent ? taxable * cgstPercent/100 : 0;
-    // SGST Amount = Taxable * SGST% /100
-    let sgstAmount=sgstPercent ? taxable * sgstPercent/100 : 0;
-    // IGST Amount = Taxable * IGST% /100
-    let igstAmount=igstPercent ? taxable * igstPercent/100 : 0;
-    
-    document.getElementById('grn_cgst_amount').value=cgstAmount.toFixed(2);
-    document.getElementById('grn_sgst_amount').value=sgstAmount.toFixed(2);
-    document.getElementById('grn_igst_amount').value=igstAmount.toFixed(2);
-    
-    // Total Invoice Value = Taxable + CGST + SGST + IGST
-    let grandTotal=taxable + cgstAmount + sgstAmount + igstAmount;
-    document.getElementById('grn_grand_total').value=grandTotal.toFixed(2);
+    let cgstP=parseFloat(document.getElementById('grn_cgst_percent').value)||0;
+    let sgstP=parseFloat(document.getElementById('grn_sgst_percent').value)||0;
+    let igstP=parseFloat(document.getElementById('grn_igst_percent').value)||0;
+    let cgstA=cgstP ? taxable*cgstP/100 : 0;
+    let sgstA=sgstP ? taxable*sgstP/100 : 0;
+    let igstA=igstP ? taxable*igstP/100 : 0;
+    document.getElementById('grn_cgst_amount').value=cgstA.toFixed(2);
+    document.getElementById('grn_sgst_amount').value=sgstA.toFixed(2);
+    document.getElementById('grn_igst_amount').value=igstA.toFixed(2);
+    document.getElementById('grn_grand_total').value=(taxable+cgstA+sgstA+igstA).toFixed(2);
   }
 }
 
 async function loadGRNs(){
   let search=document.getElementById('grn_search')?.value||'';
-  let type=document.getElementById('grn_type_filter')?.value||'';
-  let status=document.getElementById('grn_status_filter')?.value||'';
-  let sbu=document.getElementById('grn_sbu_filter')?.value||'';
-  let vendor=document.getElementById('grn_vendor_filter')?.value||'';
   let params=new URLSearchParams();
   if(search) params.set('search',search);
-  if(type) params.set('grn_type',type);
-  if(status) params.set('status',status);
-  if(sbu) params.set('sbu',sbu);
-  if(vendor) params.set('vendor',vendor);
   try{
     let res=await fetch('/api/grn?'+params.toString());
     let grns=await res.json();
@@ -3294,54 +3180,49 @@ async function loadGRNs(){
     if(!tbl) return;
     if(grns.length===0){ tbl.innerHTML='<tr><td colspan="12" style="text-align:center">No GRNs - Add New GRN</td></tr>'; }
     else{
-      tbl.innerHTML=grns.map(g=>`<tr><td><b>${g.grn_no||''}</b><br><span style="font-size:9px">${g.sbu_code||''}</span></td><td>${g.grn_date||''}</td><td>${g.po_no||''}</td><td>${g.sbu_name||''}</td><td>${g.vendor||''}<br><span style="font-size:9px">${g.station||''}</span></td><td><b>${g.vehicle_no||''}</b></td><td>${g.product_name||g.material||''}</td><td>${g.received_qty||g.net_mt||0} MT</td><td><b style="color:#1E7D32">${g.accepted_qty||0} MT</b></td><td>${g.net_mt||0} MT</td><td><span class="badge ok">${g.status||''}</span></td><td><button class="btn btn-w" style="padding:4px 8px;font-size:10px" onclick="editGRN(${g.id})">Edit</button> <button class="btn btn-r" style="padding:4px 8px;font-size:10px" onclick="delGRN(${g.id})">Del</button></td></tr>`).join('');
+      tbl.innerHTML=grns.map(g=>`<tr><td><b>${g.grn_no||''}</b></td><td>${g.grn_date||''}</td><td>${g.po_no||''}</td><td>${g.sbu_name||''}</td><td>${g.vendor||''}</td><td>${g.vehicle_no||''}</td><td>${g.product_name||''}</td><td>${g.received_qty||0}</td><td><b style="color:#1E7D32">${g.accepted_qty||0}</b></td><td>${g.net_mt||0}</td><td><span class="badge ok">${g.status||''}</span></td><td><button class="btn btn-w" style="padding:4px 8px;font-size:10px" onclick="editGRN(${g.id})">Edit</button> <button class="btn btn-r" style="padding:4px 8px;font-size:10px" onclick="delGRN(${g.id})">Del</button></td></tr>`).join('');
     }
     document.getElementById('grnTotalCount').innerText=grns.length;
-    let totalMT=grns.reduce((sum,g)=>sum+parseFloat(g.received_qty||g.net_mt||0),0);
+    let totalMT=grns.reduce((sum,g)=>sum+parseFloat(g.received_qty||0),0);
     document.getElementById('grnTotalMT').innerText=totalMT.toFixed(3)+' MT';
     let acceptedMT=grns.reduce((sum,g)=>sum+parseFloat(g.accepted_qty||0),0);
     document.getElementById('grnAcceptedMT').innerText=acceptedMT.toFixed(3)+' MT';
   }catch(e){ console.error(e); }
 }
 
-function clearGRNFilters(){ document.getElementById('grn_search').value=''; document.getElementById('grn_type_filter').value=''; document.getElementById('grn_status_filter').value=''; document.getElementById('grn_sbu_filter').value=''; document.getElementById('grn_vendor_filter').value=''; loadGRNs(); }
+function clearGRNFilters(){ document.getElementById('grn_search').value=''; loadGRNs(); }
 
 async function saveGRN(){
   let sbuId=document.getElementById('grn_sbu_id').value;
   if(!sbuId) return alert('SBU mandatory - Auto from PO No');
   let vendorId=document.getElementById('grn_vendor_id').value;
   if(!vendorId) return alert('Supplier Name mandatory');
-  let vehicleNo=document.getElementById('grn_vehicle_no').value;
-  if(!vehicleNo) return alert('Vehicle No mandatory - Not in your grouping but keeping for weighment');
   let productId=document.getElementById('grn_product_id').value;
   if(!productId) return alert('Product mandatory - Auto from PO No');
   let grossKg=document.getElementById('grn_gross_kg').value;
   let tareKg=document.getElementById('grn_tare_kg').value;
-  if(!grossKg || !tareKg) return alert('Gross Wt and Tare Wt mandatory - Formula: Net = Gross - Tare');
+  if(!grossKg || !tareKg) return alert('Gross Wt and Tare Wt mandatory');
   let acceptedQty=document.getElementById('grn_accepted_qty').value || document.getElementById('grn_net_mt').value;
-  if(!acceptedQty || parseFloat(acceptedQty)<=0) return alert('Accepted Qty >0 required - Formula: Accepted Qty = Net Wt MT');
+  if(!acceptedQty || parseFloat(acceptedQty)<=0) return alert('Accepted Qty >0 required');
   
   let payload={
     grn_type: document.getElementById('grn_type').value,
     sbu_id: parseInt(sbuId),
-    sbu_name: document.getElementById('grn_sbu_name').value,
     vendor_id: parseInt(vendorId),
-    vendor: document.getElementById('grn_vendor_id').selectedOptions[0]?.text?.split(' - ')[0]||document.getElementById('grn_vendor_name').value,
+    vendor: document.getElementById('grn_vendor_id').selectedOptions[0]?.text?.split(' - ')[0]||'',
     station: document.getElementById('grn_station').value,
-    vehicle_no: vehicleNo.toUpperCase(),
+    vehicle_no: document.getElementById('grn_vehicle_no').value,
     driver_name: document.getElementById('grn_driver_name').value,
     driver_mobile: document.getElementById('grn_driver_mobile').value,
     transporter: document.getElementById('grn_transporter').value,
     lr_no: document.getElementById('grn_lr_no').value,
     eway_bill: document.getElementById('grn_eway_bill').value,
     bill_no: document.getElementById('grn_bill_no').value,
-    invoice_no: document.getElementById('grn_bill_no').value,
     wayment_slip_no: document.getElementById('grn_wayment_slip_no').value,
     product_id: parseInt(productId),
-    product_name: document.getElementById('grn_bill_product_name').value || document.getElementById('grn_product_id').selectedOptions[0]?.text||'',
+    product_name: document.getElementById('grn_bill_product_name').value,
     product_code: document.getElementById('grn_bill_product_code').value,
     hsn_code: document.getElementById('grn_bill_hsn_code').value,
-    material: document.getElementById('grn_bill_product_name').value,
     gross_kg: parseFloat(document.getElementById('grn_gross_kg').value)||0,
     tare_kg: parseFloat(document.getElementById('grn_tare_kg').value)||0,
     net_kg: parseFloat(document.getElementById('grn_net_kg').value)||0,
@@ -3349,7 +3230,6 @@ async function saveGRN(){
     supplier_qty: parseFloat(document.getElementById('grn_supplier_qty').value)||0,
     received_qty: parseFloat(document.getElementById('grn_net_mt').value)||0,
     accepted_qty: parseFloat(acceptedQty)||0,
-    qty_differ: parseFloat(document.getElementById('grn_qty_differ').value)||0,
     rate: parseFloat(document.getElementById('grn_rate').value)||0,
     taxable_value: parseFloat(document.getElementById('grn_taxable_value').value)||0,
     cgst_percent: parseFloat(document.getElementById('grn_cgst_percent').value)||0,
@@ -3369,18 +3249,13 @@ async function saveGRN(){
     created_by: document.getElementById('grn_created_by').value
   };
   
-  let url='/api/grn';
-  let method='POST';
-  let grnId=document.getElementById('grn_id').value;
-  if(grnId){ url='/api/grn/'+grnId; method='PUT'; }
-  
   try{
-    let res=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    let res=await fetch('/api/grn',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     let text=await res.text();
     let j;
-    try{ j=JSON.parse(text); }catch(e){ alert('Server Error: '+text.substring(0,300)); return; }
-    if(res.ok){ alert('✅ GRN '+(grnId?'Updated':'Created')+': '+j.grn_no+' - Accepted '+j.accepted_qty+' MT - Stock Updated - Formula Checked'); closeAddGRNPopup(); loadGRNs(); }
-    else alert('❌ Save failed: '+(j.error||'Unknown'));
+    try{ j=JSON.parse(text); }catch(e){ alert('Server Error: '+text.substring(0,500)); console.error(text); return; }
+    if(res.ok){ alert('✅ GRN Created: '+j.grn_no+' - Accepted '+j.accepted_qty+' MT - Stock Updated'); closeAddGRNPopup(); loadGRNs(); }
+    else alert('❌ Save failed: '+(j.error||text.substring(0,500)));
   }catch(e){ alert('Error: '+e.message); }
 }
 
@@ -3398,38 +3273,27 @@ async function editGRN(id){
     document.getElementById('grn_bill_product_code').value=g.product_code||'';
     document.getElementById('grn_bill_product_name').value=g.product_name||'';
     document.getElementById('grn_bill_hsn_code').value=g.hsn_code||'';
-    document.getElementById('grn_vehicle_no').value=g.vehicle_no||'';
     document.getElementById('grn_gross_kg').value=g.gross_kg||'';
     document.getElementById('grn_tare_kg').value=g.tare_kg||'';
     document.getElementById('grn_net_kg').value=g.net_kg||'';
     document.getElementById('grn_net_mt').value=g.net_mt||'';
     document.getElementById('grn_net_wt_display').value=(g.net_kg||'')+' Kg = '+(g.net_mt||'')+' MT';
     document.getElementById('grn_accepted_qty').value=g.accepted_qty||'';
-    document.getElementById('grn_bill_qty').value=g.accepted_qty||g.net_mt||'';
+    document.getElementById('grn_bill_qty').value=g.accepted_qty||'';
     document.getElementById('grn_rate').value=g.rate||'';
     document.getElementById('grn_taxable_value').value=g.taxable_value||'';
-    document.getElementById('grn_cgst_percent').value=g.cgst_percent||'';
-    document.getElementById('grn_cgst_amount').value=g.cgst_amount||'';
-    document.getElementById('grn_sgst_percent').value=g.sgst_percent||'';
-    document.getElementById('grn_sgst_amount').value=g.sgst_amount||'';
-    document.getElementById('grn_igst_percent').value=g.igst_percent||'';
-    document.getElementById('grn_igst_amount').value=g.igst_amount||'';
     document.getElementById('grn_grand_total').value=g.grand_total||'';
-    document.getElementById('grn_bill_no').value=g.bill_no||'';
-    document.getElementById('grn_wayment_slip_no').value=g.wayment_slip_no||'';
-    document.getElementById('grn_date').value=g.grn_date||'';
-  }catch(e){ alert('Error loading GRN: '+e.message); }
+  }catch(e){ alert('Error: '+e.message); }
 }
 
-async function delGRN(id){ if(!confirm('Delete GRN? Stock will NOT be auto reversed - adjust manually')) return; let res=await fetch('/api/grn/'+id,{method:'DELETE'}); if(res.ok){ alert('Deleted'); loadGRNs(); } }
+async function delGRN(id){ if(!confirm('Delete GRN?')) return; let res=await fetch('/api/grn/'+id,{method:'DELETE'}); if(res.ok){ alert('Deleted'); loadGRNs(); } }
 function handleGRNFileSelect(input,type){ let file=input.files[0]; if(!file) return; let reader=new FileReader(); reader.onload=function(e){ document.getElementById('doc_grn_'+type).value=e.target.result; document.getElementById('dz_file_'+type).innerText=file.name+' ('+(file.size/1024).toFixed(1)+'KB)'; }; reader.readAsDataURL(file); }
 
-// Close dropdowns when clicking outside
 document.addEventListener('click', function(e){
-  let poDropdown=document.getElementById('grn_po_dropdown');
+  let poDD=document.getElementById('grn_po_dropdown');
   let poSearch=document.getElementById('grn_po_search');
-  if(poDropdown && poSearch && !poSearch.contains(e.target) && !poDropdown.contains(e.target)){
-    poDropdown.style.display='none';
+  if(poDD && poSearch && !poSearch.contains(e.target) && !poDD.contains(e.target)){
+    poDD.style.display='none';
   }
 });
 
@@ -3437,11 +3301,7 @@ loadDash(); loadAllProductsForSBU(); loadProdCatOptions(); loadVendorMasters();
 </script>
 
 
-
-
-<!-- GRN MODAL v4.6 - Simple - No other modules touched -->
-
-<!-- GRN MODAL v4.6.2 - Updated as per user feedback - Only GRN Module - No other modules touched -->
+<!-- GRN MODAL v4.6.2 - Only GRN Module - Fixed - No leak to other pages -->
 <div id="grnModal" class="modal hidden">
 <div class="modal-content" id="grnModalContent" style="max-width:1100px;transition:all 0.3s ease">
 <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center">
@@ -3450,263 +3310,58 @@ loadDash(); loadAllProductsForSBU(); loadProdCatOptions(); loadVendorMasters();
 <span id="grn_live_datetime" style="font-size:11px;background:#FFFBEB;padding:4px 8px;border-radius:6px;border:1px solid var(--brass);font-weight:600"></span>
 </div>
 <div style="display:flex;gap:6px;align-items:center">
-<button class="close-x" id="grn_minimize_btn" onclick="minimizeGRNModal()" title="Minimize - Work on multiple modules" style="font-size:14px">─</button>
+<button class="close-x" id="grn_minimize_btn" onclick="minimizeGRNModal()" title="Minimize" style="font-size:14px">─</button>
 <button class="close-x" id="grn_maximize_btn" onclick="toggleGRNFullscreen()" title="Full Window" style="font-size:14px">⛶</button>
 <button class="close-x" onclick="closeAddGRNPopup()" title="Close">×</button>
 </div>
 </div>
 <div class="modal-body" id="grnModalBody">
 
-<!-- BOX 1 - GRN Type, Supplier Name, PO No side by side - Bidirectional -->
 <div class="form-box" style="background:#FFFBEB;border:2px solid var(--brass)">
 <b>PO Reference - Select Supplier first OR PO first - Bidirectional</b>
 <div class="row">
-<div>
-<label>GRN Type *</label>
-<select id="grn_type" onchange="onGRNTypeChanged()"><option value="Against PO">Against PO</option><option value="Direct">Direct</option></select>
+<div><label>GRN Type *</label><select id="grn_type" onchange="onGRNTypeChanged()"><option value="Against PO">Against PO</option><option value="Direct">Direct</option></select></div>
+<div style="flex:1.5;position:relative"><label>Supplier Name * - Select Supplier first shows Open POs</label><select id="grn_vendor_id" onchange="onGRNSupplierSelected()"><option value="">Select Supplier</option></select><input type="text" id="grn_vendor_search" placeholder="Type Supplier to filter" onkeyup="filterGRNVendors()" style="margin-top:4px;font-size:11px" autocomplete="off"></div>
+<div style="flex:1.5;position:relative"><label>PO No * - Type PO No shows related</label><input type="text" id="grn_po_search" placeholder="Type PO No - Searchable" onkeyup="searchGRNPOs()" onfocus="searchGRNPOs()" autocomplete="off" style="padding:10px;border:2px solid var(--brass);font-weight:600"><div id="grn_po_dropdown" style="position:absolute;top:100%;left:0;right:0;background:white;border:1.5px solid var(--brass);border-radius:0 0 8px 8px;max-height:220px;overflow-y:auto;z-index:200;display:none;box-shadow:0 4px 12px rgba(0,0,0,0.15)"></div><select id="grn_po_id" style="display:none"><option value="">Select PO</option></select><div id="grn_po_preview" style="font-size:10px;color:#666;margin-top:4px"></div></div>
 </div>
-<div style="flex:1.5;position:relative">
-<label>Supplier Name * - Select Supplier first shows Open POs of that supplier</label>
-<select id="grn_vendor_id" onchange="onGRNSupplierSelected()"><option value="">Select Supplier - Type to filter</option></select>
-<input type="text" id="grn_vendor_search" placeholder="Type Supplier Name to filter - e.g. Raj Lime" onkeyup="filterGRNVendors()" style="margin-top:4px;font-size:11px" autocomplete="off">
-</div>
-<div style="flex:1.5;position:relative">
-<label>PO No * - Type PO No shows related, OR auto from Supplier</label>
-<input type="text" id="grn_po_search" placeholder="Type PO No e.g. PO/26-27/ - Searchable" onkeyup="searchGRNPOs()" onfocus="searchGRNPOs()" autocomplete="off" style="padding:10px;border:2px solid var(--brass);font-weight:600">
-<div id="grn_po_dropdown" style="position:absolute;top:100%;left:0;right:0;background:white;border:1.5px solid var(--brass);border-radius:0 0 8px 8px;max-height:220px;overflow-y:auto;z-index:200;display:none;box-shadow:0 4px 12px rgba(0,0,0,0.15)"></div>
-<select id="grn_po_id" style="display:none"><option value="">Select PO</option></select>
-<div id="grn_po_preview" style="font-size:10px;color:#666;margin-top:4px"></div>
-</div>
-</div>
-<input type="hidden" id="grn_id">
-<input type="hidden" id="grn_vendor_name">
+<input type="hidden" id="grn_id"><input type="hidden" id="grn_vendor_name">
 </div>
 
-<!-- BOX 2 - Autofetched Detail - SBU, Station, Product -->
 <div class="form-box" style="background:#E8F0FE;border:2px solid #1A2E1E">
 <b>Autofetched Detail - From PO</b>
 <div class="row">
-<div>
-<label>SBU * - Auto from PO No</label>
-<select id="grn_sbu_id" onchange="onGRNSBUChanged()"><option value="">Select SBU - Auto from PO</option></select>
-<div style="font-size:10px;color:#666">Code: <span id="grn_sbu_code_preview" style="font-weight:800">SBU</span> → GRN No: <span id="grn_no_preview" style="font-weight:800;color:#C5221F">GRN/26-27/SBU/0001 Auto</span></div>
-<input type="hidden" id="grn_sbu_name">
-</div>
-<div>
-<label>Station / Source - Auto from PO No</label>
-<input type="text" id="grn_station" placeholder="Station auto from PO - e.g. Dhanapa" readonly style="background:#f5f5f5">
-</div>
-<div>
-<label>Product * - Auto from PO No</label>
-<select id="grn_product_id" onchange="onGRNProductSelected()"><option value="">Select Product - Auto from PO</option></select>
-<div id="grn_product_info" style="font-size:10px;color:#666;margin-top:2px"></div>
-<input type="hidden" id="grn_material">
-<input type="hidden" id="grn_product_code">
-<input type="hidden" id="grn_hsn_code">
-</div>
+<div><label>SBU * - Auto from PO No</label><select id="grn_sbu_id" onchange="onGRNSBUChanged()"><option value="">Select SBU - Auto from PO</option></select><div style="font-size:10px;color:#666">Code: <span id="grn_sbu_code_preview" style="font-weight:800">SBU</span> → GRN No: <span id="grn_no_preview" style="font-weight:800;color:#C5221F">GRN/26-27/SBU/0001 Auto</span></div><input type="hidden" id="grn_sbu_name"></div>
+<div><label>Station / Source - Auto from PO No</label><input type="text" id="grn_station" placeholder="Station auto from PO" readonly style="background:#f5f5f5"></div>
+<div><label>Product * - Auto from PO No</label><select id="grn_product_id" onchange="onGRNProductSelected()"><option value="">Select Product - Auto from PO</option></select><div id="grn_product_info" style="font-size:10px;color:#666;margin-top:2px"></div><input type="hidden" id="grn_material"><input type="hidden" id="grn_product_code"><input type="hidden" id="grn_hsn_code"></div>
 </div>
 </div>
 
-<!-- BOX 3 - Supplier Invoice Details - 4 lines as per user -->
 <div class="form-box" style="background:#FFF3E0;border:2px solid #8C6B2A">
 <b>Supplier Invoice Details</b>
-<div class="row">
-<div><label>Bill No / Invoice No</label><input type="text" id="grn_bill_no" placeholder="Bill No e.g. 5355"></div>
-<div><label>E-waybill No</label><input type="text" id="grn_eway_bill" placeholder="E-waybill No"></div>
-<div><label>LR No / Bilty No</label><input type="text" id="grn_lr_no" placeholder="LR No"></div>
-</div>
-<div class="row">
-<div><label>Transporter</label><input type="text" id="grn_transporter" placeholder="Transporter e.g. FOR"></div>
-<div><label>Driver Name</label><input type="text" id="grn_driver_name" placeholder="Driver Name"></div>
-<div><label>Driver No / Mobile</label><input type="text" id="grn_driver_mobile" placeholder="Driver Mobile"></div>
-</div>
-<div class="row">
-<div><label>Gross Wt * - Kg</label><input type="number" id="grn_gross_kg" step="0.001" placeholder="Gross Wt Kg e.g. 25000" onkeyup="calcGRNWeighment()"></div>
-<div><label>Tare Wt * - Kg</label><input type="number" id="grn_tare_kg" step="0.001" placeholder="Tare Wt Kg e.g. 8000" onkeyup="calcGRNWeighment()"></div>
-<div><label>Net Wt = GRN Qty Auto - Kg and MT in same field</label><input type="text" id="grn_net_wt_display" readonly style="background:#E6F4EA;font-weight:800;color:#1E7D32" placeholder="Net Wt Auto = Gross - Tare"><input type="hidden" id="grn_net_kg"><input type="hidden" id="grn_net_mt"></div>
-</div>
-<div class="row">
-<div><label>Supplier Qty MT - From Bill/Challan</label><input type="number" id="grn_supplier_qty" step="0.001" placeholder="Supplier Qty e.g. 21.27" onkeyup="calcGRNWeighment()"></div>
-<div><label>Accepted Qty MT * - Stock adds this</label><input type="number" id="grn_accepted_qty" step="0.001" placeholder="Accepted Qty MT" onkeyup="calcGRNAmount()"></div>
-<div><label>Stock Yard * - Yards of SBU</label><select id="grn_stock_yard_id" onchange="onGRNYardSelected()"><option value="">Select Yard - Yards of SBU</option></select><input type="hidden" id="grn_stock_yard_name"></div>
-</div>
-<div class="row">
-<div><label>Qty Differ Auto = Supplier - Net</label><input type="text" id="grn_qty_differ_display" readonly style="background:#FFFBEB;font-size:11px" placeholder="Differ Auto"><input type="hidden" id="grn_qty_differ"><input type="hidden" id="grn_differ_percent"></div>
-<div><label>Wayment Slip No *</label><input type="text" id="grn_wayment_slip_no" placeholder="Wayment Slip No e.g. 6816"></div>
-<div><label>GRN Date * - Auto from live date/time</label><input type="datetime-local" id="grn_date"></div>
-</div>
+<div class="row"><div><label>Bill No / Invoice No</label><input type="text" id="grn_bill_no" placeholder="Bill No"></div><div><label>E-waybill No</label><input type="text" id="grn_eway_bill" placeholder="E-waybill No"></div><div><label>LR No / Bilty No</label><input type="text" id="grn_lr_no" placeholder="LR No"></div></div>
+<div class="row"><div><label>Transporter</label><input type="text" id="grn_transporter" placeholder="Transporter"></div><div><label>Driver Name</label><input type="text" id="grn_driver_name" placeholder="Driver Name"></div><div><label>Driver No / Mobile</label><input type="text" id="grn_driver_mobile" placeholder="Driver Mobile"></div></div>
+<div class="row"><div><label>Gross Wt * - Kg</label><input type="number" id="grn_gross_kg" step="0.001" placeholder="Gross Wt Kg" onkeyup="calcGRNWeighment()"></div><div><label>Tare Wt * - Kg</label><input type="number" id="grn_tare_kg" step="0.001" placeholder="Tare Wt Kg" onkeyup="calcGRNWeighment()"></div><div><label>Net Wt = GRN Qty Auto</label><input type="text" id="grn_net_wt_display" readonly style="background:#E6F4EA;font-weight:800;color:#1E7D32" placeholder="Net Wt Auto"><input type="hidden" id="grn_net_kg"><input type="hidden" id="grn_net_mt"></div></div>
+<div class="row"><div><label>Supplier Qty MT</label><input type="number" id="grn_supplier_qty" step="0.001" placeholder="Supplier Qty" onkeyup="calcGRNWeighment()"></div><div><label>Accepted Qty MT *</label><input type="number" id="grn_accepted_qty" step="0.001" placeholder="Accepted Qty" onkeyup="calcGRNAmount()"></div><div><label>Stock Yard *</label><select id="grn_stock_yard_id" onchange="onGRNYardSelected()"><option value="">Select Yard</option></select><input type="hidden" id="grn_stock_yard_name"></div></div>
+<div class="row"><div><label>Qty Differ Auto</label><input type="text" id="grn_qty_differ_display" readonly style="background:#FFFBEB;font-size:11px" placeholder="Differ Auto"><input type="hidden" id="grn_qty_differ"><input type="hidden" id="grn_differ_percent"></div><div><label>Wayment Slip No *</label><input type="text" id="grn_wayment_slip_no" placeholder="Slip No"></div><div><label>GRN Date *</label><input type="datetime-local" id="grn_date"></div></div>
 </div>
 
-<!-- BOX 4 - Bill Type Format -->
 <div class="form-box" style="background:white;border:2px solid var(--green)">
 <b>Bill Type Format - Invoice Details - Formula Checked</b>
-<div style="overflow-x:auto">
-<table style="font-size:11px;width:100%;border:1px solid var(--line)"><thead><tr style="background:#F8F6F3">
-<th>Product Code</th><th>Product Name</th><th>HSN Code</th><th>UOM</th><th>Rate Rs/MT</th><th>Qty MT</th><th>Taxable Value Rs</th>
-</tr></thead><tbody>
-<tr>
-<td><input type="text" id="grn_bill_product_code" readonly style="background:#f5f5f5;font-weight:700" placeholder="Code auto"></td>
-<td><input type="text" id="grn_bill_product_name" readonly style="background:#f5f5f5" placeholder="Name auto"></td>
-<td><input type="text" id="grn_bill_hsn_code" readonly style="background:#f5f5f5" placeholder="HSN auto"></td>
-<td><select id="grn_unit" onchange="calcGRNAmount()"><option value="MT">MT</option><option value="KG">KG</option><option value="QTL">QTL</option></select></td>
-<td><input type="number" id="grn_rate" step="0.01" placeholder="Rate auto from PO" onkeyup="calcGRNAmount()"></td>
-<td><input type="number" id="grn_bill_qty" step="0.001" placeholder="Qty = Accepted Qty" readonly style="background:#E6F4EA;font-weight:700"></td>
-<td><input type="number" id="grn_taxable_value" step="0.01" readonly style="background:#E6F4EA;font-weight:700" placeholder="Taxable = Rate*Qty"></td>
-</tr>
-</tbody></table>
-</div>
-<div style="margin-top:10px">
-<b>Tax Calculations - Formula: CGST = Taxable * CGST% /100</b>
-<div class="row">
-<div><label>CGST %</label><input type="number" id="grn_cgst_percent" step="0.01" placeholder="CGST % e.g. 2.5" onkeyup="calcGRNAmount()"></div>
-<div><label>CGST Amount = Taxable * CGST%</label><input type="number" id="grn_cgst_amount" readonly style="background:#f5f5f5" placeholder="CGST Amount auto"></div>
-<div><label>SGST %</label><input type="number" id="grn_sgst_percent" step="0.01" placeholder="SGST % e.g. 2.5" onkeyup="calcGRNAmount()"></div>
-<div><label>SGST Amount = Taxable * SGST%</label><input type="number" id="grn_sgst_amount" readonly style="background:#f5f5f5" placeholder="SGST Amount auto"></div>
-</div>
-<div class="row">
-<div><label>IGST %</label><input type="number" id="grn_igst_percent" step="0.01" placeholder="IGST % e.g. 5" onkeyup="calcGRNAmount()"></div>
-<div><label>IGST Amount = Taxable * IGST%</label><input type="number" id="grn_igst_amount" readonly style="background:#f5f5f5" placeholder="IGST Amount auto"></div>
-<div><label>Total Invoice Value = Taxable + CGST + SGST + IGST</label><input type="number" id="grn_grand_total" readonly style="background:#1A2E1E;color:white;font-weight:800" placeholder="Grand Total auto"></div>
-</div>
-</div>
-<input type="hidden" id="grn_po_qty"><input type="hidden" id="grn_received_qty"><input type="hidden" id="grn_spec">
-<input type="hidden" id="grn_invoice_no"><input type="hidden" id="grn_invoice_date"><input type="hidden" id="grn_challan_no"><input type="hidden" id="grn_rawana_no"><input type="hidden" id="grn_bilty_rate"><input type="hidden" id="grn_bilty_amount"><input type="hidden" id="grn_freight_advance"><input type="hidden" id="grn_unloading_point"><input type="hidden" id="grn_unloading_charges"><input type="hidden" id="grn_moisture_percent"><input type="hidden" id="grn_quality_status" value="OK"><input type="hidden" id="grn_quality_remark" value="OK"><input type="hidden" id="grn_deduction_amount"><input type="hidden" id="grn_shortage_ded"><input type="hidden" id="grn_rate_difference"><input type="hidden" id="grn_debit_note_no"><input type="hidden" id="grn_remarks"><input type="hidden" id="grn_wastage_kg">
+<div style="overflow-x:auto"><table style="font-size:11px;width:100%;border:1px solid var(--line)"><thead><tr style="background:#F8F6F3"><th>Product Code</th><th>Product Name</th><th>HSN Code</th><th>UOM</th><th>Rate Rs/MT</th><th>Qty MT</th><th>Taxable Value Rs</th></tr></thead><tbody><tr><td><input type="text" id="grn_bill_product_code" readonly style="background:#f5f5f5;font-weight:700" placeholder="Code auto"></td><td><input type="text" id="grn_bill_product_name" readonly style="background:#f5f5f5" placeholder="Name auto"></td><td><input type="text" id="grn_bill_hsn_code" readonly style="background:#f5f5f5" placeholder="HSN auto"></td><td><select id="grn_unit" onchange="calcGRNAmount()"><option value="MT">MT</option><option value="KG">KG</option></select></td><td><input type="number" id="grn_rate" step="0.01" placeholder="Rate auto" onkeyup="calcGRNAmount()"></td><td><input type="number" id="grn_bill_qty" step="0.001" placeholder="Qty" readonly style="background:#E6F4EA;font-weight:700"></td><td><input type="number" id="grn_taxable_value" step="0.01" readonly style="background:#E6F4EA;font-weight:700" placeholder="Taxable"></td></tr></tbody></table></div>
+<div style="margin-top:10px"><b>Tax Calculations - Formula Checked</b><div class="row"><div><label>CGST %</label><input type="number" id="grn_cgst_percent" step="0.01" placeholder="CGST %" onkeyup="calcGRNAmount()"></div><div><label>CGST Amount</label><input type="number" id="grn_cgst_amount" readonly style="background:#f5f5f5" placeholder="CGST auto"></div><div><label>SGST %</label><input type="number" id="grn_sgst_percent" step="0.01" placeholder="SGST %" onkeyup="calcGRNAmount()"></div><div><label>SGST Amount</label><input type="number" id="grn_sgst_amount" readonly style="background:#f5f5f5" placeholder="SGST auto"></div></div><div class="row"><div><label>IGST %</label><input type="number" id="grn_igst_percent" step="0.01" placeholder="IGST %" onkeyup="calcGRNAmount()"></div><div><label>IGST Amount</label><input type="number" id="grn_igst_amount" readonly style="background:#f5f5f5" placeholder="IGST auto"></div><div><label>Total Invoice Value</label><input type="number" id="grn_grand_total" readonly style="background:#1A2E1E;color:white;font-weight:800" placeholder="Grand Total"></div></div></div>
+<input type="hidden" id="grn_po_qty"><input type="hidden" id="grn_received_qty"><input type="hidden" id="grn_spec"><input type="hidden" id="grn_invoice_no"><input type="hidden" id="grn_invoice_date"><input type="hidden" id="grn_challan_no"><input type="hidden" id="grn_rawana_no"><input type="hidden" id="grn_bilty_rate"><input type="hidden" id="grn_bilty_amount"><input type="hidden" id="grn_freight_advance"><input type="hidden" id="grn_unloading_point"><input type="hidden" id="grn_unloading_charges"><input type="hidden" id="grn_moisture_percent"><input type="hidden" id="grn_quality_status" value="OK"><input type="hidden" id="grn_quality_remark" value="OK"><input type="hidden" id="grn_deduction_amount"><input type="hidden" id="grn_shortage_ded"><input type="hidden" id="grn_rate_difference"><input type="hidden" id="grn_debit_note_no"><input type="hidden" id="grn_remarks"><input type="hidden" id="grn_wastage_kg">
 </div>
 
-<!-- BOX 5 - Attachments -->
-<div class="form-box">
-<b>Attachments</b>
-<div class="row">
-<div><label>Weighment Slip</label><input type="file" id="file_grn_weighment_slip" accept=".pdf,.jpg,.png" onchange="handleGRNFileSelect(this,'weighment_slip')"><input type="hidden" id="doc_grn_weighment_slip"><div id="dz_file_weighment_slip" style="font-size:10px;color:#666;margin-top:4px">No file</div></div>
-<div><label>Invoice / Bill</label><input type="file" id="file_grn_invoice" accept=".pdf,.jpg,.png" onchange="handleGRNFileSelect(this,'invoice')"><input type="hidden" id="doc_grn_invoice"><div id="dz_file_invoice" style="font-size:10px;color:#666;margin-top:4px">No file</div></div>
+<div class="form-box"><b>Attachments</b><div class="row"><div><label>Weighment Slip</label><input type="file" id="file_grn_weighment_slip" accept=".pdf,.jpg,.png" onchange="handleGRNFileSelect(this,'weighment_slip')"><input type="hidden" id="doc_grn_weighment_slip"><div id="dz_file_weighment_slip" style="font-size:10px;color:#666">No file</div></div><div><label>Invoice / Bill</label><input type="file" id="file_grn_invoice" accept=".pdf,.jpg,.png" onchange="handleGRNFileSelect(this,'invoice')"><input type="hidden" id="doc_grn_invoice"><div id="dz_file_invoice" style="font-size:10px;color:#666">No file</div></div></div></div>
+
+<div class="form-box" style="background:#E6F4EA;border:2px solid #1E7D32"><b>Inventory Posting</b><div class="row"><div><label>Created By</label><input type="text" id="grn_created_by" value="Admin"></div><div><label>GRN No Preview</label><input type="text" id="grn_no_display" readonly style="background:#E6F4EA;font-weight:900;color:#C5221F" placeholder="GRN/26-27/SBU/0001 Auto"></div><div><label>Status</label><select id="grn_status"><option value="Approved">Approved - Stock Auto Added</option><option value="Received">Received</option></select></div></div><div style="font-size:11px;color:#1E7D32">✅ On Save: Accepted Qty added to Product stock and SBU Yard — Formula: Stock = Old + Accepted Qty</div></div>
+
+</div>
+<div class="modal-footer"><button class="btn btn-g" style="flex:1;padding:14px;font-size:14px;font-weight:800" onclick="saveGRN()"><i class="bi bi-check-circle"></i> Save GRN - Stock Auto Update - Formula Checked</button><button class="btn btn-w" onclick="closeAddGRNPopup()">Cancel</button></div>
 </div>
 </div>
 
-<!-- BOX 6 - Inventory Posting -->
-<div class="form-box" style="background:#E6F4EA;border:2px solid #1E7D32">
-<b>Inventory Posting</b>
-<div class="row">
-<div><label>Created By</label><input type="text" id="grn_created_by" value="Admin"></div>
-<div><label>GRN No Preview - SBU Code + FY</label><input type="text" id="grn_no_display" readonly style="background:#E6F4EA;font-weight:900;color:#C5221F" placeholder="GRN/26-27/SBU/0001 Auto"></div>
-<div><label>Status</label><select id="grn_status"><option value="Approved">Approved - Stock Auto Added</option><option value="Received">Received</option></select></div>
-</div>
-<div style="font-size:11px;color:#1E7D32;margin-top:6px">✅ On Save: Accepted Qty added to Product stock and SBU Yard — Formula: Stock = Old + Accepted Qty</div>
-</div>
-
-</div>
-<div class="modal-footer">
-<button class="btn btn-g" style="flex:1;padding:14px;font-size:14px;font-weight:800" onclick="saveGRN()"><i class="bi bi-check-circle"></i> Save GRN - Stock Auto Update - Formula Checked</button>
-<button class="btn btn-w" onclick="closeAddGRNPopup()">Cancel</button>
-</div>
-</div>
-</div>
-
-<!-- Minimized GRN Bar - For multi-tab work -->
-<div id="grn_minimized_bar" class="hidden" style="position:fixed;bottom:10px;right:10px;background:#1A2E1E;color:white;padding:8px 14px;border-radius:20px;box-shadow:0 4px 12px rgba(0,0,0,0.3);z-index:2000;display:flex;gap:10px;align-items:center;font-size:11px">
-<span><i class="bi bi-truck-flatbed"></i> GRN Minimized - Working on other modules</span>
-<button class="btn btn-y" style="padding:4px 10px;font-size:10px" onclick="restoreGRNModal()">Restore GRN</button>
-<button class="btn btn-w" style="padding:4px 8px;font-size:10px" onclick="closeAddGRNPopup()">Close</button>
-</div>
-
-
-<!-- BOX 4 - Attachments (was Documents) -->
-<div class="form-box">
-<b>Attachments</b>
-<div class="row">
-<div><label>Weighment Slip</label><input type="file" id="file_grn_weighment_slip" accept=".pdf,.jpg,.png" onchange="handleGRNFileSelect(this,'weighment_slip')"><input type="hidden" id="doc_grn_weighment_slip"><div id="dz_file_weighment_slip" style="font-size:10px;color:#666;margin-top:4px">No file</div></div>
-<div><label>Invoice / Bill</label><input type="file" id="file_grn_invoice" accept=".pdf,.jpg,.png" onchange="handleGRNFileSelect(this,'invoice')"><input type="hidden" id="doc_grn_invoice"><div id="dz_file_invoice" style="font-size:10px;color:#666;margin-top:4px">No file</div></div>
-</div>
-</div>
-
-<!-- BOX 5 - Inventory Posting (was Stock Update) -->
-<div class="form-box" style="background:#E6F4EA;border:2px solid #1E7D32">
-<b>Inventory Posting</b>
-<div class="row">
-<div><label>Created By</label><input type="text" id="grn_created_by" value="Admin" placeholder="Created By"></div>
-<div><label>GRN No Preview - SBU Code + FY</label><input type="text" id="grn_no_display" readonly style="background:#E6F4EA;font-weight:900;color:#C5221F" placeholder="GRN/26-27/SBU/0001 Auto"></div>
-<div><label>Status</label><select id="grn_status"><option value="Approved">Approved - Stock Auto Added</option><option value="Received">Received</option></select></div>
-</div>
-<div style="font-size:11px;color:#1E7D32;margin-top:6px">✅ On Save: Accepted Qty will be added to Product stock (total_stock_mt) and to selected SBU Stock Yard opening_stock automatically</div>
-<!-- Hidden fields for compatibility -->
-<input type="hidden" id="grn_sbu_name">
-<input type="hidden" id="grn_vendor_name">
-<input type="hidden" id="grn_material">
-<input type="hidden" id="grn_product_code">
-<input type="hidden" id="grn_hsn_code">
-<input type="hidden" id="grn_spec">
-<input type="hidden" id="grn_received_qty">
-<input type="hidden" id="grn_po_qty">
-<input type="hidden" id="grn_taxable_value">
-<input type="hidden" id="grn_cgst_percent"><input type="hidden" id="grn_cgst_amount"><input type="hidden" id="grn_sgst_percent"><input type="hidden" id="grn_sgst_amount"><input type="hidden" id="grn_igst_percent"><input type="hidden" id="grn_igst_amount"><input type="hidden" id="grn_grand_total">
-<input type="hidden" id="grn_bilty_rate"><input type="hidden" id="grn_bilty_amount"><input type="hidden" id="grn_freight_advance"><input type="hidden" id="grn_unloading_point"><input type="hidden" id="grn_unloading_charges"><input type="hidden" id="grn_stock_yard_name"><input type="hidden" id="grn_moisture_percent"><input type="hidden" id="grn_quality_status" value="OK"><input type="hidden" id="grn_quality_remark" value="OK"><input type="hidden" id="grn_deduction_amount"><input type="hidden" id="grn_shortage_ded"><input type="hidden" id="grn_rate_difference"><input type="hidden" id="grn_debit_note_no"><input type="hidden" id="grn_remarks"><input type="hidden" id="grn_invoice_no"><input type="hidden" id="grn_invoice_date"><input type="hidden" id="grn_challan_no"><input type="hidden" id="grn_rawana_no"><input type="hidden" id="grn_eway_bill"><input type="hidden" id="grn_wastage_kg">
-</div>
-
-</div>
-<div class="modal-footer">
-<button class="btn btn-g" style="flex:1;padding:14px;font-size:14px;font-weight:800" onclick="saveGRN()"><i class="bi bi-check-circle"></i> Save GRN - Stock Auto Update</button>
-<button class="btn btn-w" onclick="closeAddGRNPopup()">Cancel</button>
-</div>
-</div>
-</div>
-
-
-<div class="form-box">
-<b>Invoice & Material - Single Product</b>
-<div class="row">
-<div><label>Bill No</label><input type="text" id="grn_bill_no" placeholder="Bill No"></div>
-<div><label>Wayment Slip No *</label><input type="text" id="grn_wayment_slip_no" placeholder="Slip No e.g. 6816"></div>
-<div><label>Product *</label><select id="grn_product_id" onchange="onGRNProductSelected()"><option value="">Select Product</option></select></div>
-</div>
-<div class="row">
-<div><label>Material</label><input type="text" id="grn_material" placeholder="Material"></div>
-<div><label>UOM</label><select id="grn_unit"><option value="MT">MT</option><option value="KG">KG</option></select></div>
-<div><label>Stock Yard *</label><select id="grn_stock_yard_id"><option value="">Select Yard</option></select></div>
-</div>
-</div>
-
-<div class="form-box" style="background:#FFF3E0;border:2px solid #8C6B2A">
-<b>Weighment - Gross/Tare/Net Auto</b>
-<div class="row">
-<div><label>Gross Kg *</label><input type="number" id="grn_gross_kg" step="0.001" placeholder="Gross Kg" onkeyup="calcGRNWeighment()"></div>
-<div><label>Tare Kg *</label><input type="number" id="grn_tare_kg" step="0.001" placeholder="Tare Kg" onkeyup="calcGRNWeighment()"></div>
-<div><label>Net Kg Auto</label><input type="number" id="grn_net_kg" readonly style="background:#E8F0FE;font-weight:800" placeholder="Net Kg Auto"></div>
-</div>
-<div class="row">
-<div><label>Net MT Auto</label><input type="number" id="grn_net_mt" readonly style="background:#E6F4EA;font-weight:800" placeholder="Net MT Auto"></div>
-<div><label>Supplier Qty MT</label><input type="number" id="grn_supplier_qty" step="0.001" placeholder="Supplier Qty" onkeyup="calcGRNWeighment()"></div>
-<div><label>Received Qty MT</label><input type="number" id="grn_received_qty" step="0.001" placeholder="Received Qty" onkeyup="calcGRNWeighment()"></div>
-</div>
-<div class="row">
-<div><label>Accepted Qty MT *</label><input type="number" id="grn_accepted_qty" step="0.001" placeholder="Accepted Qty"></div>
-<div><label>Rate Rs/MT *</label><input type="number" id="grn_rate" step="0.01" placeholder="Rate"></div>
-<div><label>GRN Date *</label><input type="date" id="grn_date"></div>
-</div>
-</div>
-
-<div class="form-box">
-<b>Documents - 2 Docs</b>
-<div class="row">
-<div><label>Weighment Slip Doc</label><input type="file" id="file_grn_weighment_slip" accept=".pdf,.jpg,.png" onchange="handleGRNFileSelect(this,'weighment_slip')"><input type="hidden" id="doc_grn_weighment_slip"></div>
-<div><label>Invoice Doc</label><input type="file" id="file_grn_invoice" accept=".pdf,.jpg,.png" onchange="handleGRNFileSelect(this,'invoice')"><input type="hidden" id="doc_grn_invoice"></div>
-</div>
-</div>
-
-<div class="form-box" style="background:#E6F4EA;border:2px solid #1E7D32">
-<b>Stock Update - No approval wait</b>
-<div class="row">
-<div><label>Created By</label><input type="text" id="grn_created_by" value="Admin"></div>
-<div><label>GRN No Preview</label><input type="text" id="grn_no_display" readonly style="background:#E6F4EA;font-weight:900" placeholder="GRN/26-27/SBU/0001"></div>
-</div>
-<div style="font-size:11px;color:#1E7D32">✅ On Save: Accepted Qty added to Product stock + SBU Yard stock auto</div>
-</div>
-
-</div>
-<div class="modal-footer">
-<button class="btn btn-g" style="flex:1;padding:14px;font-size:14px" onclick="saveGRN()">Save GRN v4.6 - Stock Auto Update</button>
-<button class="btn btn-w" onclick="closeAddGRNPopup()">Cancel</button>
-</div>
-</div>
-</div>
+<div id="grn_minimized_bar" class="hidden" style="position:fixed;bottom:10px;right:10px;background:#1A2E1E;color:white;padding:8px 14px;border-radius:20px;box-shadow:0 4px 12px rgba(0,0,0,0.3);z-index:2000;display:flex;gap:10px;align-items:center;font-size:11px"><span><i class="bi bi-truck-flatbed"></i> GRN Minimized</span><button class="btn btn-y" style="padding:4px 10px;font-size:10px" onclick="restoreGRNModal()">Restore</button><button class="btn btn-w" style="padding:4px 8px;font-size:10px" onclick="closeAddGRNPopup()">Close</button></div>
 
 </body></html>
 """
