@@ -1911,11 +1911,9 @@ input,select,textarea{padding:8px 10px;border-radius:7px;border:1.5px solid var(
 <!-- GRN MODULE v4.6 - Only GRN Module Added - Other Modules Locked to v4.5.2 -->
 <div id="grn" class="tabcontent hidden">
 <div class="card" style="text-align:center;padding:18px">
-<h1 style="font-size:22px;font-weight:900"><i class="bi bi-truck-flatbed"></i> GRN Module v4.6 - SBU Code + PO Link + Weighment + Stock Auto</h1>
-<p style="font-size:11px;color:#666">GRN No: GRN/26-27/SBUCODE/0001 - PO searchable - SBU Code auto - Weighment Gross/Tare/Net auto - Stock auto update - v4.6 New</p>
-<div class="row" style="justify-content:center">
-<button class="btn btn-g" style="padding:12px 28px;font-size:14px" onclick="openAddGRNPopup()">Add New GRN - v4.6</button>
-<button class="btn btn-y" onclick="loadGRNs()">Reload GRNs</button>
+<h1 style="font-size:22px;font-weight:900"><i class="bi bi-truck-flatbed"></i> Goods Receipt Note</h1>
+<div class="row" style="justify-content:center;margin-top:12px">
+<button class="btn btn-g" style="padding:12px 28px;font-size:14px" onclick="openAddGRNPopup()"><i class="bi bi-plus-circle"></i> Add New GRN</button>
 </div>
 </div>
 <div class="card">
@@ -2912,7 +2910,8 @@ async function uploadBackupData(){
 async function loadDash(){ let r=await fetch('/api/inventory/combined'); let d=await r.json(); document.getElementById('totalVal').innerText='Rs '+(d.total_value_lakh||0).toFixed(2)+' Lakh'; let rc=await fetch('/api/product_categories'); let cats=await rc.json(); document.getElementById('catCountDash').innerText=cats.length; let rp=await fetch('/api/products'); let prods=await rp.json(); document.getElementById('prodCountDash').innerText=prods.length; let rs=await fetch('/api/sbus'); let sbus=await rs.json(); document.getElementById('sbuCountDash').innerText=sbus.length;}
 async function loadStock(){ let r=await fetch('/api/inventory/combined'); let d=await r.json(); document.getElementById('rawTbl').innerHTML='<h4>Raw</h4><table><tr><th>Code</th><th>Name</th><th>MT</th></tr>'+d.raw.map(x=>`<tr><td>${x.product_code}</td><td>${x.name}</td><td>${x.total_mt}</td></tr>`).join('')+'</table>'; document.getElementById('finTbl').innerHTML='<h4>Finished</h4><table><tr><th>Code</th><th>Name</th><th>MT</th></tr>'+d.finished.map(x=>`<tr><td>${x.product_code}</td><td>${x.name}</td><td>${x.total_mt}</td></tr>`).join('')+'</table>';}
 
-// ========== GRN MODULE v4.6 - SAFE - No other modules touched ==========
+
+// ========== GRN MODULE v4.6.1 - Updated as per user feedback - Only GRN Module ==========
 let grnPOsCache=[]; let grnProductsCache=[]; let grnSBUsCache=[]; let grnVendorsCache=[];
 
 function openAddGRNPopup(){
@@ -2920,9 +2919,34 @@ function openAddGRNPopup(){
   document.getElementById('grn_id').value='';
   document.getElementById('grn_date').value=new Date().toISOString().split('T')[0];
   document.getElementById('grn_created_by').value='Admin';
+  document.getElementById('grn_po_search').value='';
+  document.getElementById('grn_po_dropdown').style.display='none';
+  document.getElementById('grn_po_dropdown').innerHTML='';
+  document.getElementById('grn_po_id').innerHTML='<option value="">Select PO</option>';
+  document.getElementById('grn_po_preview').innerHTML='';
+  document.getElementById('grn_sbu_id').value='';
+  document.getElementById('grn_sbu_code_preview').innerText='SBU';
+  document.getElementById('grn_no_preview').innerText='GRN/26-27/SBU/0001 Auto';
+  document.getElementById('grn_no_display').value='GRN/26-27/SBU/0001 Auto';
+  document.getElementById('grn_vendor_id').value='';
+  document.getElementById('grn_station').value='';
+  document.getElementById('grn_product_id').value='';
+  document.getElementById('grn_material').value='';
+  document.getElementById('grn_gross_kg').value='';
+  document.getElementById('grn_tare_kg').value='';
+  document.getElementById('grn_net_wt_display').value='';
+  document.getElementById('grn_net_kg').value='';
+  document.getElementById('grn_net_mt').value='';
+  document.getElementById('grn_supplier_qty').value='';
+  document.getElementById('grn_received_qty').value='';
+  document.getElementById('grn_accepted_qty').value='';
+  document.getElementById('grn_rate').value='';
+  document.getElementById('grn_vehicle_no').value='';
+  document.getElementById('grn_bill_no').value='';
+  document.getElementById('grn_wayment_slip_no').value='';
   loadGRNPOs(); loadGRNSBUs(); loadGRNVendors(); loadGRNProducts();
 }
-function closeAddGRNPopup(){ document.getElementById('grnModal').classList.add('hidden'); }
+function closeAddGRNPopup(){ document.getElementById('grnModal').classList.add('hidden'); document.getElementById('grn_po_dropdown').style.display='none'; }
 function setGRNType(type){ document.getElementById('grn_type').value=type; }
 
 async function loadGRNFilters(){
@@ -2932,7 +2956,7 @@ async function loadGRNFilters(){
     let sbuFilter=document.getElementById('grn_sbu_filter');
     let sbuSelect=document.getElementById('grn_sbu_id');
     if(sbuFilter) sbuFilter.innerHTML='<option value="">All SBUs</option>'+sbus.map(s=>`<option value="${s.id}">${s.sbu_name}</option>`).join('');
-    if(sbuSelect) sbuSelect.innerHTML='<option value="">Select SBU</option>'+sbus.map(s=>`<option value="${s.id}">${s.sbu_name}</option>`).join('');
+    if(sbuSelect) sbuSelect.innerHTML='<option value="">Select SBU - Auto from PO</option>'+sbus.map(s=>`<option value="${s.id}">${s.sbu_name}</option>`).join('');
   }catch(e){}
   try{
     let vendors=await fetch('/api/vendors').then(r=>r.json());
@@ -2940,7 +2964,7 @@ async function loadGRNFilters(){
     let vendorFilter=document.getElementById('grn_vendor_filter');
     let vendorSelect=document.getElementById('grn_vendor_id');
     if(vendorFilter) vendorFilter.innerHTML='<option value="">All Vendors</option>'+vendors.map(v=>`<option value="${v.id}">${v.name}</option>`).join('');
-    if(vendorSelect) vendorSelect.innerHTML='<option value="">Select Vendor</option>'+vendors.map(v=>`<option value="${v.id}">${v.name}</option>`).join('');
+    if(vendorSelect) vendorSelect.innerHTML='<option value="">Select Vendor - Auto from PO</option>'+vendors.map(v=>`<option value="${v.id}">${v.name} - ${v.station||''}</option>`).join('');
   }catch(e){}
 }
 
@@ -2952,23 +2976,76 @@ async function loadGRNPOs(){
     if(sel) sel.innerHTML='<option value="">Select PO - '+pos.length+' POs</option>'+pos.map(p=>`<option value="${p.id}">${p.po_no} - ${p.vendor} - ${p.sbu_name}</option>`).join('');
   }catch(e){}
 }
+
 function searchGRNPOs(){
-  let search=(document.getElementById('grn_po_search').value||'').toLowerCase();
-  let sel=document.getElementById('grn_po_id');
-  if(!sel) return;
-  let filtered=grnPOsCache.filter(p=>(p.po_no||'').toLowerCase().includes(search) || (p.vendor||'').toLowerCase().includes(search));
-  sel.innerHTML='<option value="">Select PO - '+filtered.length+' found</option>'+filtered.map(p=>`<option value="${p.id}">${p.po_no} - ${p.vendor}</option>`).join('');
+  let search=(document.getElementById('grn_po_search').value||'').toLowerCase().trim();
+  let dropdown=document.getElementById('grn_po_dropdown');
+  if(!search){
+    dropdown.style.display='none';
+    dropdown.innerHTML='';
+    return;
+  }
+  let filtered=grnPOsCache.filter(p=>(p.po_no||'').toLowerCase().includes(search) || (p.vendor||'').toLowerCase().includes(search) || (p.sbu_name||'').toLowerCase().includes(search) || (p.material||'').toLowerCase().includes(search));
+  if(filtered.length===0){
+    dropdown.innerHTML='<div style="padding:8px;font-size:11px;color:#666">No POs found for "'+search+'"</div>';
+    dropdown.style.display='block';
+    return;
+  }
+  dropdown.innerHTML=filtered.slice(0,20).map(p=>`<div style="padding:8px 10px;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:11px" onclick="selectGRNPO(${p.id})"><b>${p.po_no}</b> - ${p.vendor} - ${p.sbu_name}<br><span style="font-size:10px;color:#666">${p.material||''} - ${p.po_date||''}</span></div>`).join('');
+  dropdown.style.display='block';
 }
-function onGRNPOSelected(){
-  let poId=document.getElementById('grn_po_id').value;
+
+function selectGRNPO(poId){
   let po=grnPOsCache.find(p=>String(p.id)===String(poId));
   if(!po) return;
   document.getElementById('grn_po_search').value=po.po_no;
-  if(po.sbu_id){ document.getElementById('grn_sbu_id').value=po.sbu_id; onGRNSBUChanged(); }
-  if(po.vendor_id){ document.getElementById('grn_vendor_id').value=po.vendor_id; onGRNVendorChanged(); }
-  if(po.items && po.items[0]){ document.getElementById('grn_product_id').value=po.items[0].product_id||''; onGRNProductSelected(); document.getElementById('grn_rate').value=po.items[0].rate||''; }
+  document.getElementById('grn_po_id').value=po.id;
+  document.getElementById('grn_po_dropdown').style.display='none';
+  document.getElementById('grn_po_preview').innerHTML='<b>'+po.po_no+'</b> - '+po.vendor+' - '+po.sbu_name+' - '+(po.material||'')+' - Rate: '+(po.items && po.items[0] ? po.items[0].rate : '');
+  document.getElementById('grn_po_date').value=po.po_date||'';
+  // Auto fill SBU - merged field
+  if(po.sbu_id){
+    document.getElementById('grn_sbu_id').value=po.sbu_id;
+    onGRNSBUChanged();
+  }
+  // Auto fill Vendor - merged field
+  if(po.vendor_id){
+    document.getElementById('grn_vendor_id').value=po.vendor_id;
+    onGRNVendorChanged();
+  }
+  // Auto fill Station from vendor
+  let vendor=grnVendorsCache.find(v=>String(v.id)===String(po.vendor_id));
+  if(vendor){
+    document.getElementById('grn_station').value=vendor.station||'';
+  }
+  // Auto fill Product - If PO has multiple products, show dropdown of PO products only
+  if(po.items && po.items.length>0){
+    let prodSelect=document.getElementById('grn_product_id');
+    if(po.items.length===1){
+      // Single product - auto select
+      let item=po.items[0];
+      prodSelect.innerHTML='<option value="'+(item.product_id||'')+'">'+(item.product_name||po.material||'')+' - '+item.qty+' MT @ Rs '+item.rate+'</option>';
+      prodSelect.value=item.product_id||'';
+      onGRNProductSelected();
+      document.getElementById('grn_rate').value=item.rate||'';
+      document.getElementById('grn_unit').value=item.uom||'MT';
+      document.getElementById('grn_product_info').innerHTML='Auto from PO: '+(item.product_name||'')+' - Qty '+item.qty+' MT';
+    } else {
+      // Multiple products - dropdown of PO products only
+      prodSelect.innerHTML='<option value="">Select Product from PO - '+po.items.length+' products in this PO</option>'+po.items.map(item=>`<option value="${item.product_id||''}">${item.product_name||''} - ${item.qty} MT @ Rs ${item.rate} - ${item.uom||'MT'}</option>`).join('');
+      document.getElementById('grn_product_info').innerHTML='PO has '+po.items.length+' products - Select one from dropdown (PO products only)';
+    }
+  }
 }
+
+function onGRNPOSelected(){
+  // Old function kept for compatibility - calls selectGRNPO
+  let poId=document.getElementById('grn_po_id').value;
+  if(poId) selectGRNPO(poId);
+}
+
 async function loadGRNSBUs(){ await loadGRNFilters(); }
+
 async function onGRNSBUChanged(){
   let sbuId=document.getElementById('grn_sbu_id').value;
   let sbu=grnSBUsCache.find(s=>String(s.id)===String(sbuId));
@@ -2981,44 +3058,92 @@ async function onGRNSBUChanged(){
     try{
       let yards=await fetch('/api/grn/sbu_yards/'+sbuId).then(r=>r.json());
       let yardSel=document.getElementById('grn_stock_yard_id');
-      if(yardSel) yardSel.innerHTML='<option value="">Select Yard - '+yards.length+' yards</option>'+yards.map(y=>`<option value="${y.id}">${y.yard_name}</option>`).join('');
+      if(yardSel) yardSel.innerHTML='<option value="">Select Yard - '+yards.length+' yards of '+sbu.sbu_name+'</option>'+yards.map(y=>`<option value="${y.id}">${y.yard_name}</option>`).join('');
     }catch(e){}
   }
 }
+
 async function loadGRNVendors(){ await loadGRNFilters(); }
+
 function onGRNVendorChanged(){
   let vendorId=document.getElementById('grn_vendor_id').value;
   let vendor=grnVendorsCache.find(v=>String(v.id)===String(vendorId));
-  if(vendor){ document.getElementById('grn_vendor_name').value=vendor.name; document.getElementById('grn_station').value=vendor.station||''; }
+  if(vendor){
+    document.getElementById('grn_vendor_name').value=vendor.name;
+    document.getElementById('grn_station').value=vendor.station||'';
+  }
 }
+
 async function loadGRNProducts(){
   try{
     let prods=await fetch('/api/products').then(r=>r.json());
     grnProductsCache=prods;
+    // For Direct GRN, show all products - for Against PO, products filtered to PO products only in selectGRNPO
     let sel=document.getElementById('grn_product_id');
-    if(sel) sel.innerHTML='<option value="">Select Product - '+prods.length+' products</option>'+prods.map(p=>`<option value="${p.id}">${p.product_code} - ${p.name}</option>`).join('');
+    if(sel && sel.options.length<=1){
+      sel.innerHTML='<option value="">Select Product - Auto from PO or Direct</option>'+prods.map(p=>`<option value="${p.id}">${p.product_code} - ${p.name}</option>`).join('');
+    }
   }catch(e){}
 }
+
 function onGRNProductSelected(){
   let prodId=document.getElementById('grn_product_id').value;
   let prod=grnProductsCache.find(p=>String(p.id)===String(prodId));
-  if(prod){ document.getElementById('grn_material').value=prod.name; }
+  if(prod){
+    document.getElementById('grn_material').value=prod.name;
+    document.getElementById('grn_product_code').value=prod.product_code||'';
+    document.getElementById('grn_hsn_code').value=prod.hsn_code||'';
+  } else {
+    // Try from PO items
+    let poId=document.getElementById('grn_po_id').value;
+    let po=grnPOsCache.find(p=>String(p.id)===String(poId));
+    if(po && po.items){
+      let item=po.items.find(it=>String(it.product_id)===String(prodId));
+      if(item){
+        document.getElementById('grn_material').value=item.product_name||'';
+        document.getElementById('grn_rate').value=item.rate||'';
+        document.getElementById('grn_unit').value=item.uom||'MT';
+        document.getElementById('grn_product_code').value=item.product_code||'';
+      }
+    }
+  }
 }
+
 function calcGRNWeighment(){
   let gross=parseFloat(document.getElementById('grn_gross_kg').value)||0;
   let tare=parseFloat(document.getElementById('grn_tare_kg').value)||0;
   if(gross && tare){
     let net=gross - tare;
+    let netMT=net/1000;
     document.getElementById('grn_net_kg').value=net.toFixed(3);
-    document.getElementById('grn_net_mt').value=(net/1000).toFixed(3);
-    if(!document.getElementById('grn_received_qty').value) document.getElementById('grn_received_qty').value=(net/1000).toFixed(3);
-    if(!document.getElementById('grn_accepted_qty').value) document.getElementById('grn_accepted_qty').value=(net/1000).toFixed(3);
+    document.getElementById('grn_net_mt').value=netMT.toFixed(3);
+    // Net Wt display with MT conversion in same input
+    document.getElementById('grn_net_wt_display').value=net.toFixed(3)+' Kg = '+netMT.toFixed(3)+' MT';
+    // Auto fill Received and Accepted as Net MT (since net = received)
+    if(!document.getElementById('grn_received_qty').value) document.getElementById('grn_received_qty').value=netMT.toFixed(3);
+    if(!document.getElementById('grn_accepted_qty').value) document.getElementById('grn_accepted_qty').value=netMT.toFixed(3);
+    // Qty Differ
+    let supplierQty=parseFloat(document.getElementById('grn_supplier_qty').value)||0;
+    if(supplierQty){
+      let differ=supplierQty - netMT;
+      document.getElementById('grn_qty_differ').value=differ.toFixed(3);
+      document.getElementById('grn_qty_differ_display').value=differ.toFixed(3)+' MT ('+(supplierQty ? (differ/supplierQty*100).toFixed(2)+'%' : '')+')';
+    }
   }
 }
+
 async function loadGRNs(){
   let search=document.getElementById('grn_search')?.value||'';
+  let type=document.getElementById('grn_type_filter')?.value||'';
+  let status=document.getElementById('grn_status_filter')?.value||'';
+  let sbu=document.getElementById('grn_sbu_filter')?.value||'';
+  let vendor=document.getElementById('grn_vendor_filter')?.value||'';
   let params=new URLSearchParams();
   if(search) params.set('search',search);
+  if(type) params.set('grn_type',type);
+  if(status) params.set('status',status);
+  if(sbu) params.set('sbu',sbu);
+  if(vendor) params.set('vendor',vendor);
   try{
     let res=await fetch('/api/grn?'+params.toString());
     let grns=await res.json();
@@ -3026,100 +3151,252 @@ async function loadGRNs(){
     if(!tbl) return;
     if(grns.length===0){ tbl.innerHTML='<tr><td colspan="12" style="text-align:center">No GRNs - Add New GRN</td></tr>'; }
     else{
-      tbl.innerHTML=grns.map(g=>`<tr><td><b>${g.grn_no||''}</b></td><td>${g.grn_date||''}</td><td>${g.po_no||''}</td><td>${g.sbu_name||''}</td><td>${g.vendor||''}</td><td>${g.vehicle_no||''}</td><td>${g.product_name||g.material||''}</td><td>${g.received_qty||0}</td><td><b style="color:#1E7D32">${g.accepted_qty||0}</b></td><td>${g.net_mt||0}</td><td><span class="badge ok">${g.status||''}</span></td><td><button class="btn btn-w" style="padding:4px 8px;font-size:10px" onclick="editGRN(${g.id})">Edit</button> <button class="btn btn-r" style="padding:4px 8px;font-size:10px" onclick="delGRN(${g.id})">Del</button></td></tr>`).join('');
+      tbl.innerHTML=grns.map(g=>`<tr><td><b>${g.grn_no||''}</b></td><td>${g.grn_date||''}</td><td>${g.po_no||''}</td><td>${g.sbu_name||''}</td><td>${g.vendor||''}</td><td>${g.vehicle_no||''}</td><td>${g.product_name||g.material||''}</td><td>${g.received_qty||g.net_mt||0}</td><td><b style="color:#1E7D32">${g.accepted_qty||0}</b></td><td>${g.net_mt||0}</td><td><span class="badge ok">${g.status||''}</span></td><td><button class="btn btn-w" style="padding:4px 8px;font-size:10px" onclick="editGRN(${g.id})">Edit</button> <button class="btn btn-r" style="padding:4px 8px;font-size:10px" onclick="delGRN(${g.id})">Del</button></td></tr>`).join('');
     }
     document.getElementById('grnTotalCount').innerText=grns.length;
-    let totalMT=grns.reduce((sum,g)=>sum+parseFloat(g.received_qty||0),0);
+    let totalMT=grns.reduce((sum,g)=>sum+parseFloat(g.received_qty||g.net_mt||0),0);
     document.getElementById('grnTotalMT').innerText=totalMT.toFixed(3)+' MT';
     let acceptedMT=grns.reduce((sum,g)=>sum+parseFloat(g.accepted_qty||0),0);
     document.getElementById('grnAcceptedMT').innerText=acceptedMT.toFixed(3)+' MT';
   }catch(e){ console.error(e); }
 }
-function clearGRNFilters(){ document.getElementById('grn_search').value=''; loadGRNs(); }
+
+function clearGRNFilters(){ document.getElementById('grn_search').value=''; document.getElementById('grn_type_filter').value=''; document.getElementById('grn_status_filter').value=''; document.getElementById('grn_sbu_filter').value=''; document.getElementById('grn_vendor_filter').value=''; loadGRNs(); }
+
 async function saveGRN(){
   let sbuId=document.getElementById('grn_sbu_id').value;
-  if(!sbuId) return alert('SBU mandatory');
+  if(!sbuId) return alert('SBU mandatory - Select SBU (auto from PO or manual)');
   let vendorId=document.getElementById('grn_vendor_id').value;
-  if(!vendorId) return alert('Vendor mandatory');
+  if(!vendorId) return alert('Vendor mandatory - Auto from PO or manual');
   let vehicleNo=document.getElementById('grn_vehicle_no').value;
   if(!vehicleNo) return alert('Vehicle No mandatory');
   let productId=document.getElementById('grn_product_id').value;
-  if(!productId) return alert('Product mandatory');
+  if(!productId) return alert('Product mandatory - Auto from PO');
   let grossKg=document.getElementById('grn_gross_kg').value;
   let tareKg=document.getElementById('grn_tare_kg').value;
-  if(!grossKg || !tareKg) return alert('Gross and Tare mandatory');
+  if(!grossKg || !tareKg) return alert('Gross Wt and Tare Wt mandatory');
+  let acceptedQty=document.getElementById('grn_accepted_qty').value || document.getElementById('grn_net_mt').value;
+  if(!acceptedQty || parseFloat(acceptedQty)<=0) return alert('Accepted Qty >0 required');
+  
   let payload={
     sbu_id: parseInt(sbuId),
     vendor_id: parseInt(vendorId),
     vehicle_no: vehicleNo.toUpperCase(),
     product_id: parseInt(productId),
-    material: document.getElementById('grn_material').value,
+    material: document.getElementById('grn_material').value || document.getElementById('grn_product_id').selectedOptions[0]?.text||'',
     gross_kg: parseFloat(document.getElementById('grn_gross_kg').value)||0,
     tare_kg: parseFloat(document.getElementById('grn_tare_kg').value)||0,
     net_kg: parseFloat(document.getElementById('grn_net_kg').value)||0,
     net_mt: parseFloat(document.getElementById('grn_net_mt').value)||0,
-    received_qty: parseFloat(document.getElementById('grn_received_qty').value)||0,
-    accepted_qty: parseFloat(document.getElementById('grn_accepted_qty').value)||0,
+    received_qty: parseFloat(document.getElementById('grn_net_mt').value)||0,
+    accepted_qty: parseFloat(acceptedQty)||0,
+    supplier_qty: parseFloat(document.getElementById('grn_supplier_qty').value)||0,
     rate: parseFloat(document.getElementById('grn_rate').value)||0,
     bill_no: document.getElementById('grn_bill_no').value,
     wayment_slip_no: document.getElementById('grn_wayment_slip_no').value,
     grn_date: document.getElementById('grn_date').value,
     po_id: document.getElementById('grn_po_id').value ? parseInt(document.getElementById('grn_po_id').value) : null,
+    po_no: document.getElementById('grn_po_search').value,
     station: document.getElementById('grn_station').value,
     stock_yard_id: document.getElementById('grn_stock_yard_id').value ? parseInt(document.getElementById('grn_stock_yard_id').value) : 0,
     stock_yard_name: document.getElementById('grn_stock_yard_id').selectedOptions[0]?.text||'',
+    unit: document.getElementById('grn_unit').value,
     documents: { weighment_slip: document.getElementById('doc_grn_weighment_slip').value, invoice: document.getElementById('doc_grn_invoice').value },
     created_by: document.getElementById('grn_created_by').value
   };
+  
   let url='/api/grn';
   let method='POST';
+  let grnId=document.getElementById('grn_id').value;
+  if(grnId){ url='/api/grn/'+grnId; method='PUT'; }
+  
   try{
     let res=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     let text=await res.text();
     let j;
     try{ j=JSON.parse(text); }catch(e){ alert('Server Error: '+text.substring(0,200)); return; }
-    if(res.ok){ alert('✅ GRN Created: '+j.grn_no+' - Accepted '+j.accepted_qty+' MT - Stock Updated'); closeAddGRNPopup(); loadGRNs(); }
+    if(res.ok){ alert('✅ GRN '+(grnId?'Updated':'Created')+': '+j.grn_no+' - Accepted '+j.accepted_qty+' MT - Stock Updated'); closeAddGRNPopup(); loadGRNs(); }
     else alert('❌ Save failed: '+(j.error||'Unknown'));
   }catch(e){ alert('Error: '+e.message); }
 }
-async function editGRN(id){ alert('Edit GRN '+id+' - Coming soon - Use API for now'); }
-async function delGRN(id){ if(!confirm('Delete GRN?')) return; let res=await fetch('/api/grn/'+id,{method:'DELETE'}); if(res.ok){ alert('Deleted'); loadGRNs(); } }
-function handleGRNFileSelect(input,type){ let file=input.files[0]; if(!file) return; let reader=new FileReader(); reader.onload=function(e){ document.getElementById('doc_grn_'+type).value=e.target.result; }; reader.readAsDataURL(file); }
+
+async function editGRN(id){
+  try{
+    let g=await fetch('/api/grn/'+id).then(r=>r.json());
+    openAddGRNPopup();
+    document.getElementById('grn_id').value=g.id;
+    document.getElementById('grn_po_id').value=g.po_id||'';
+    document.getElementById('grn_po_search').value=g.po_no||'';
+    document.getElementById('grn_sbu_id').value=g.sbu_id||'';
+    document.getElementById('grn_vendor_id').value=g.vendor_id||'';
+    document.getElementById('grn_product_id').value=g.product_id||'';
+    document.getElementById('grn_vehicle_no').value=g.vehicle_no||'';
+    document.getElementById('grn_gross_kg').value=g.gross_kg||'';
+    document.getElementById('grn_tare_kg').value=g.tare_kg||'';
+    document.getElementById('grn_net_kg').value=g.net_kg||'';
+    document.getElementById('grn_net_mt').value=g.net_mt||'';
+    document.getElementById('grn_net_wt_display').value=(g.net_kg||'')+' Kg = '+(g.net_mt||'')+' MT';
+    document.getElementById('grn_accepted_qty').value=g.accepted_qty||'';
+    document.getElementById('grn_rate').value=g.rate||'';
+    document.getElementById('grn_bill_no').value=g.bill_no||'';
+    document.getElementById('grn_wayment_slip_no').value=g.wayment_slip_no||'';
+    document.getElementById('grn_date').value=g.grn_date||'';
+  }catch(e){ alert('Error loading GRN: '+e.message); }
+}
+
+async function delGRN(id){ if(!confirm('Delete GRN? Stock will NOT be auto reversed - adjust manually')) return; let res=await fetch('/api/grn/'+id,{method:'DELETE'}); if(res.ok){ alert('Deleted'); loadGRNs(); } }
+
+function handleGRNFileSelect(input,type){ let file=input.files[0]; if(!file) return; let reader=new FileReader(); reader.onload=function(e){ document.getElementById('doc_grn_'+type).value=e.target.result; document.getElementById('dz_file_'+type).innerText=file.name+' ('+(file.size/1024).toFixed(1)+'KB)'; }; reader.readAsDataURL(file); }
+
+// Close PO dropdown when clicking outside
+document.addEventListener('click', function(e){
+  let dropdown=document.getElementById('grn_po_dropdown');
+  let searchInput=document.getElementById('grn_po_search');
+  if(dropdown && searchInput && !searchInput.contains(e.target) && !dropdown.contains(e.target)){
+    dropdown.style.display='none';
+  }
+});
 
 loadDash(); loadAllProductsForSBU(); loadProdCatOptions(); loadVendorMasters();
 </script>
 
 
+
 <!-- GRN MODAL v4.6 - Simple - No other modules touched -->
+
+<!-- GRN MODAL v4.6.1 - Updated as per user feedback - Only GRN Module -->
 <div id="grnModal" class="modal hidden">
 <div class="modal-content" style="max-width:1000px">
 <div class="modal-header">
-<h3><i class="bi bi-truck-flatbed"></i> Add GRN v4.6 - SBU Code + PO Link + Weighment + Stock Auto</h3>
+<h3><i class="bi bi-truck-flatbed"></i> Goods Receipt Note</h3>
 <button class="close-x" onclick="closeAddGRNPopup()">×</button>
 </div>
 <div class="modal-body">
-<div class="form-box" style="background:#E8F0FE;border:2px solid #1A2E1E">
-<b>GRN Type - Against PO (Default) vs Direct</b>
+
+<!-- BOX 1 - PO Reference - Searchable Single Field - No heading as per user -->
+<div class="form-box" style="background:#FFFBEB;border:2px solid var(--brass)">
 <div class="row">
-<div><label>GRN Type *</label><select id="grn_type" onchange="setGRNType(this.value)"><option value="Against PO">Against PO - Pick from PO</option><option value="Direct">Direct GRN</option></select></div>
-<div><label>PO No - Searchable</label><input type="text" id="grn_po_search" placeholder="Type PO No to search" onkeyup="searchGRNPOs()" autocomplete="off"><select id="grn_po_id" onchange="onGRNPOSelected()"><option value="">Select PO</option></select></div>
+<div style="flex:2;position:relative">
+<label>PO No * - Type PO No to search, dropdown shows related</label>
+<input type="text" id="grn_po_search" placeholder="Type PO No e.g. PO/26-27/PRODUCT/0001 or Vendor or SBU - Searchable" onkeyup="searchGRNPOs()" onfocus="searchGRNPOs()" autocomplete="off" style="padding:10px;border:2px solid var(--brass);font-weight:600">
+<div id="grn_po_dropdown" style="position:absolute;top:100%;left:0;right:0;background:white;border:1.5px solid var(--brass);border-radius:0 0 8px 8px;max-height:200px;overflow-y:auto;z-index:100;display:none;box-shadow:0 4px 12px rgba(0,0,0,0.15)"></div>
+<select id="grn_po_id" style="display:none"><option value="">Select PO</option></select>
+<div id="grn_po_preview" style="font-size:10px;color:#666;margin-top:4px"></div>
+</div>
+<div>
+<label>PO Date (Auto)</label>
+<input type="text" id="grn_po_date" readonly style="background:#f5f5f5">
+</div>
 </div>
 <input type="hidden" id="grn_id">
+<input type="hidden" id="grn_type" value="Against PO">
 </div>
 
-<div class="form-box">
-<b>SBU + Vendor - Auto from PO</b>
+<!-- BOX 2 - Auto Fetched Fields - From PO / Master -->
+<div class="form-box" style="background:#E8F0FE;border:2px solid #1A2E1E">
+<b>Auto Fetched Details - From PO</b>
 <div class="row">
-<div><label>SBU *</label><select id="grn_sbu_id" onchange="onGRNSBUChanged()"><option value="">Select SBU</option></select><div style="font-size:10px">SBU Code: <span id="grn_sbu_code_preview">SBU</span> → GRN No: <span id="grn_no_preview">GRN/26-27/SBU/0001</span></div></div>
-<div><label>SBU Name</label><input type="text" id="grn_sbu_name" readonly style="background:#f5f5f5"></div>
-<div><label>Vendor *</label><select id="grn_vendor_id" onchange="onGRNVendorChanged()"><option value="">Select Vendor</option></select></div>
+<div>
+<label>SBU * - Auto from PO, Editable in Direct GRN</label>
+<select id="grn_sbu_id" onchange="onGRNSBUChanged()"><option value="">Select SBU - Auto from PO</option></select>
+<div style="font-size:10px;color:#666">SBU Code: <span id="grn_sbu_code_preview" style="font-weight:800">SBU</span> → GRN No: <span id="grn_no_preview" style="font-weight:800;color:#C5221F">GRN/26-27/SBU/0001 Auto</span></div>
+</div>
+<div>
+<label>Vendor * - Auto from PO, Editable in Direct GRN</label>
+<select id="grn_vendor_id" onchange="onGRNVendorChanged()"><option value="">Select Vendor - Auto from PO</option></select>
+</div>
+<div>
+<label>Station / Source - Auto from PO</label>
+<input type="text" id="grn_station" placeholder="Station auto from Vendor/PO">
+</div>
 </div>
 <div class="row">
-<div><label>Vendor Name</label><input type="text" id="grn_vendor_name" readonly style="background:#f5f5f5"></div>
-<div><label>Station</label><input type="text" id="grn_station" placeholder="Station"></div>
+<div>
+<label>Product * - Auto from PO, If PO has multiple products dropdown of PO products only</label>
+<select id="grn_product_id" onchange="onGRNProductSelected()"><option value="">Select Product - Auto from PO</option></select>
+<div id="grn_product_info" style="font-size:10px;color:#666;margin-top:2px"></div>
+</div>
+<div>
+<label>UOM - Auto from PO</label>
+<select id="grn_unit"><option value="MT">MT</option><option value="KG">KG</option></select>
+</div>
+<div>
+<label>Rate Rs/MT * - Auto from PO</label>
+<input type="number" id="grn_rate" step="0.01" placeholder="Rate auto from PO">
+</div>
+</div>
+</div>
+
+<!-- BOX 3 - Input Fields - Manual Entry -->
+<div class="form-box" style="background:#FFF3E0;border:2px solid #8C6B2A">
+<b>Manual Entry Details</b>
+<div class="row">
+<div><label>Bill No</label><input type="text" id="grn_bill_no" placeholder="Bill No e.g. 5355"></div>
+<div><label>Wayment Slip No *</label><input type="text" id="grn_wayment_slip_no" placeholder="Wayment Slip No e.g. 6816"></div>
 <div><label>Vehicle No *</label><input type="text" id="grn_vehicle_no" placeholder="RJ21GD0595" style="text-transform:uppercase"></div>
 </div>
+<div class="row">
+<div><label>Gross Wt * - Kg</label><input type="number" id="grn_gross_kg" step="0.001" placeholder="Gross Wt Kg e.g. 25000" onkeyup="calcGRNWeighment()"></div>
+<div><label>Tare Wt * - Kg</label><input type="number" id="grn_tare_kg" step="0.001" placeholder="Tare Wt Kg e.g. 8000" onkeyup="calcGRNWeighment()"></div>
+<div><label>Net Wt - Auto Kg = Gross - Tare, MT auto in same input</label><input type="text" id="grn_net_wt_display" readonly style="background:#E6F4EA;font-weight:800;color:#1E7D32" placeholder="Net Wt Auto - Kg and MT"><input type="hidden" id="grn_net_kg"><input type="hidden" id="grn_net_mt"></div>
 </div>
+<div class="row">
+<div><label>Supplier Qty MT</label><input type="number" id="grn_supplier_qty" step="0.001" placeholder="Supplier Qty MT e.g. 21.27" onkeyup="calcGRNWeighment()"></div>
+<div><label>Accepted Qty MT * - Stock will add this</label><input type="number" id="grn_accepted_qty" step="0.001" placeholder="Accepted Qty MT"></div>
+<div><label>GRN Date *</label><input type="date" id="grn_date"></div>
+</div>
+<div class="row">
+<div><label>Stock Yard * - Yards of selected SBU</label><select id="grn_stock_yard_id"><option value="">Select Yard - Yards of SBU</option></select></div>
+<div><label>Driver Name</label><input type="text" id="grn_driver_name" placeholder="Driver Name"></div>
+<div><label>Transporter</label><input type="text" id="grn_transporter" placeholder="Transporter"></div>
+</div>
+<div class="row">
+<div><label>Qty Differ Auto</label><input type="text" id="grn_qty_differ_display" readonly style="background:#FFFBEB" placeholder="Qty Differ Auto"><input type="hidden" id="grn_qty_differ"><input type="hidden" id="grn_differ_percent"></div>
+<div><label>Driver Mobile</label><input type="text" id="grn_driver_mobile" placeholder="Mobile"></div>
+<div><label>LR No</label><input type="text" id="grn_lr_no" placeholder="LR No"></div>
+</div>
+</div>
+
+<!-- BOX 4 - Attachments (was Documents) -->
+<div class="form-box">
+<b>Attachments</b>
+<div class="row">
+<div><label>Weighment Slip</label><input type="file" id="file_grn_weighment_slip" accept=".pdf,.jpg,.png" onchange="handleGRNFileSelect(this,'weighment_slip')"><input type="hidden" id="doc_grn_weighment_slip"><div id="dz_file_weighment_slip" style="font-size:10px;color:#666;margin-top:4px">No file</div></div>
+<div><label>Invoice / Bill</label><input type="file" id="file_grn_invoice" accept=".pdf,.jpg,.png" onchange="handleGRNFileSelect(this,'invoice')"><input type="hidden" id="doc_grn_invoice"><div id="dz_file_invoice" style="font-size:10px;color:#666;margin-top:4px">No file</div></div>
+</div>
+</div>
+
+<!-- BOX 5 - Inventory Posting (was Stock Update) -->
+<div class="form-box" style="background:#E6F4EA;border:2px solid #1E7D32">
+<b>Inventory Posting</b>
+<div class="row">
+<div><label>Created By</label><input type="text" id="grn_created_by" value="Admin" placeholder="Created By"></div>
+<div><label>GRN No Preview - SBU Code + FY</label><input type="text" id="grn_no_display" readonly style="background:#E6F4EA;font-weight:900;color:#C5221F" placeholder="GRN/26-27/SBU/0001 Auto"></div>
+<div><label>Status</label><select id="grn_status"><option value="Approved">Approved - Stock Auto Added</option><option value="Received">Received</option></select></div>
+</div>
+<div style="font-size:11px;color:#1E7D32;margin-top:6px">✅ On Save: Accepted Qty will be added to Product stock (total_stock_mt) and to selected SBU Stock Yard opening_stock automatically</div>
+<!-- Hidden fields for compatibility -->
+<input type="hidden" id="grn_sbu_name">
+<input type="hidden" id="grn_vendor_name">
+<input type="hidden" id="grn_material">
+<input type="hidden" id="grn_product_code">
+<input type="hidden" id="grn_hsn_code">
+<input type="hidden" id="grn_spec">
+<input type="hidden" id="grn_received_qty">
+<input type="hidden" id="grn_po_qty">
+<input type="hidden" id="grn_taxable_value">
+<input type="hidden" id="grn_cgst_percent"><input type="hidden" id="grn_cgst_amount"><input type="hidden" id="grn_sgst_percent"><input type="hidden" id="grn_sgst_amount"><input type="hidden" id="grn_igst_percent"><input type="hidden" id="grn_igst_amount"><input type="hidden" id="grn_grand_total">
+<input type="hidden" id="grn_bilty_rate"><input type="hidden" id="grn_bilty_amount"><input type="hidden" id="grn_freight_advance"><input type="hidden" id="grn_unloading_point"><input type="hidden" id="grn_unloading_charges"><input type="hidden" id="grn_stock_yard_name"><input type="hidden" id="grn_moisture_percent"><input type="hidden" id="grn_quality_status" value="OK"><input type="hidden" id="grn_quality_remark" value="OK"><input type="hidden" id="grn_deduction_amount"><input type="hidden" id="grn_shortage_ded"><input type="hidden" id="grn_rate_difference"><input type="hidden" id="grn_debit_note_no"><input type="hidden" id="grn_remarks"><input type="hidden" id="grn_invoice_no"><input type="hidden" id="grn_invoice_date"><input type="hidden" id="grn_challan_no"><input type="hidden" id="grn_rawana_no"><input type="hidden" id="grn_eway_bill"><input type="hidden" id="grn_wastage_kg">
+</div>
+
+</div>
+<div class="modal-footer">
+<button class="btn btn-g" style="flex:1;padding:14px;font-size:14px;font-weight:800" onclick="saveGRN()"><i class="bi bi-check-circle"></i> Save GRN - Stock Auto Update</button>
+<button class="btn btn-w" onclick="closeAddGRNPopup()">Cancel</button>
+</div>
+</div>
+</div>
+
 
 <div class="form-box">
 <b>Invoice & Material - Single Product</b>
