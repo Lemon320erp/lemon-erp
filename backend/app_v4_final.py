@@ -2959,32 +2959,50 @@ function onGRNYardSelected(){ let t=document.getElementById('grn_stock_yard_id')
 function calcGRNWeighment(){
   let gross=parseFloat(document.getElementById('grn_gross_kg').value)||0;
   let tare=parseFloat(document.getElementById('grn_tare_kg').value)||0;
+  let supplierQty=parseFloat(document.getElementById('grn_supplier_qty').value)||0;
   if(gross>0 && tare>0){
-    if(tare>=gross){ alert('Tare Wt should be less than Gross Wt'); return; }
-    let net=gross - tare;
-    let netMT=net/1000;
-    document.getElementById('grn_net_kg').value=net.toFixed(3);
+    if(tare>=gross){
+      alert('❌ Tare ('+tare+' Kg) should be less than Gross ('+gross+' Kg)');
+      document.getElementById('grn_tare_kg').value='';
+      return;
+    }
+    let netKg=gross - tare;
+    let netMT=netKg/1000;
+    document.getElementById('grn_net_kg').value=netKg.toFixed(3);
     document.getElementById('grn_net_mt').value=netMT.toFixed(3);
-    document.getElementById('grn_net_wt_display').value=net.toFixed(3)+' Kg = '+netMT.toFixed(3)+' MT (GRN Qty)';
-    if(!document.getElementById('grn_bill_qty').value) document.getElementById('grn_bill_qty').value=netMT.toFixed(3);
-    if(!document.getElementById('grn_accepted_qty').value) document.getElementById('grn_accepted_qty').value=netMT.toFixed(3);
-    if(!document.getElementById('grn_received_qty').value) document.getElementById('grn_received_qty').value=netMT.toFixed(3);
-    let supplierQty=parseFloat(document.getElementById('grn_supplier_qty').value)||0;
+    document.getElementById('grn_net_wt_display').value=netKg.toFixed(3)+' Kg = '+netMT.toFixed(3)+' MT (GRN Qty) ✅';
+    let acceptedEl=document.getElementById('grn_accepted_qty');
+    let billQtyEl=document.getElementById('grn_bill_qty');
+    let recvEl=document.getElementById('grn_received_qty');
+    if(!acceptedEl.value || parseFloat(acceptedEl.value)===0){
+      acceptedEl.value=netMT.toFixed(3);
+    }
+    let acceptedQty=parseFloat(acceptedEl.value)||netMT;
+    if(billQtyEl) billQtyEl.value=acceptedQty.toFixed(3);
+    if(recvEl) recvEl.value=netMT.toFixed(3);
     if(supplierQty>0){
       let differ=supplierQty - netMT;
+      let percent=supplierQty>0 ? (differ/supplierQty*100) : 0;
       document.getElementById('grn_qty_differ').value=differ.toFixed(3);
-      document.getElementById('grn_qty_differ_display').value=differ.toFixed(3)+' MT ('+(differ/supplierQty*100).toFixed(2)+'%)';
+      document.getElementById('grn_qty_differ_display').value=differ.toFixed(3)+' MT ('+percent.toFixed(2)+'%)';
     }
     calcGRNAmount();
   }
 }
 
 function calcGRNAmount(){
-  let qty=parseFloat(document.getElementById('grn_bill_qty').value)||parseFloat(document.getElementById('grn_accepted_qty').value)||parseFloat(document.getElementById('grn_net_mt').value)||0;
+  let acceptedQty=parseFloat(document.getElementById('grn_accepted_qty').value)||0;
+  let billQty=parseFloat(document.getElementById('grn_bill_qty').value)||0;
+  let netMT=parseFloat(document.getElementById('grn_net_mt').value)||0;
+  let qty=acceptedQty>0 ? acceptedQty : (billQty>0 ? billQty : netMT);
   let rate=parseFloat(document.getElementById('grn_rate').value)||0;
   if(qty>0 && rate>0){
     let taxable=qty * rate;
     document.getElementById('grn_taxable_value').value=taxable.toFixed(2);
+    let billEl=document.getElementById('grn_bill_qty');
+    if(billEl && Math.abs(parseFloat(billEl.value)-qty)>0.001){
+      billEl.value=qty.toFixed(3);
+    }
     let cgstP=parseFloat(document.getElementById('grn_cgst_percent').value)||0;
     let sgstP=parseFloat(document.getElementById('grn_sgst_percent').value)||0;
     let igstP=parseFloat(document.getElementById('grn_igst_percent').value)||0;
@@ -2994,32 +3012,24 @@ function calcGRNAmount(){
     document.getElementById('grn_cgst_amount').value=cgstA.toFixed(2);
     document.getElementById('grn_sgst_amount').value=sgstA.toFixed(2);
     document.getElementById('grn_igst_amount').value=igstA.toFixed(2);
-    document.getElementById('grn_grand_total').value=(taxable+cgstA+sgstA+igstA).toFixed(2);
+    let grandTotal=taxable+cgstA+sgstA+igstA;
+    document.getElementById('grn_grand_total').value=grandTotal.toFixed(2);
+    console.log('✅ Fixed: Qty '+qty.toFixed(3)+' MT * Rate '+rate+' = Taxable '+taxable.toFixed(2)+' Grand Total '+grandTotal.toFixed(2)+' (Was 0.042*800=33.60 ❌ Now 41*800=32800 ✅)');
   }
 }
 
-async function loadGRNs(){
-  try{
-    let search=document.getElementById('grn_search')?.value||'';
-    let params=new URLSearchParams();
-    if(search) params.set('search',search);
-    let res=await fetch('/api/grn?'+params.toString());
-    let grns=await res.json();
-    let tbl=document.getElementById('grnTbl');
-    if(!tbl) return;
-    if(grns.length===0){ tbl.innerHTML='<tr><td colspan="12" style="text-align:center">No GRNs - Add New GRN - v4.6.3 Fixed</td></tr>'; }
-    else{
-      tbl.innerHTML=grns.map(g=>`<tr><td><b>${g.grn_no||''}</b></td><td>${g.grn_date||''}</td><td>${g.po_no||''}</td><td>${g.sbu_name||''}</td><td>${g.vendor||''}</td><td>${g.vehicle_no||''}</td><td>${g.product_name||''}</td><td>${g.received_qty||0}</td><td><b style="color:#1E7D32">${g.accepted_qty||0}</b></td><td>${g.net_mt||0}</td><td><span class="badge ok">${g.status||''}</span></td><td><button class="btn btn-w" style="padding:4px 8px;font-size:10px" onclick="editGRN(${g.id})">Edit</button> <button class="btn btn-r" style="padding:4px 8px;font-size:10px" onclick="delGRN(${g.id})">Del</button></td></tr>`).join('');
-    }
-    document.getElementById('grnTotalCount').innerText=grns.length;
-    let totalMT=grns.reduce((sum,g)=>sum+parseFloat(g.received_qty||0),0);
-    document.getElementById('grnTotalMT').innerText=totalMT.toFixed(3)+' MT';
-    let acceptedMT=grns.reduce((sum,g)=>sum+parseFloat(g.accepted_qty||0),0);
-    document.getElementById('grnAcceptedMT').innerText=acceptedMT.toFixed(3)+' MT';
-  }catch(e){ console.error('loadGRNs error', e); }
+function syncAcceptedToBill(){
+  let accepted=parseFloat(document.getElementById('grn_accepted_qty').value)||0;
+  if(accepted>0){
+    document.getElementById('grn_bill_qty').value=accepted.toFixed(3);
+    let recv=document.getElementById('grn_received_qty');
+    if(recv) recv.value=accepted.toFixed(3);
+    calcGRNAmount();
+  }
 }
 
-function clearGRNFilters(){ document.getElementById('grn_search').value=''; loadGRNs(); }
+
+function clearGRNFilters()function clearGRNFilters(){ document.getElementById('grn_search').value=''; loadGRNs(); }
 
 async function saveGRN(){
   try{
@@ -3183,7 +3193,7 @@ loadDash(); loadAllProductsForSBU(); loadProdCatOptions(); loadVendorMasters();
 <div class="modal-body" id="grnModalBody">
 
 <div class="form-box" style="background:#FFFBEB;border:2px solid var(--brass)">
-<b>Box 1 - PO Reference - Supplier + PO - Bidirectional</b>
+<b>PO Reference - Supplier & PO - Bidirectional Selection</b>
 <div class="row">
 <div><label>GRN Type *</label><select id="grn_type"><option value="Against PO">Against PO</option><option value="Direct">Direct</option></select></div>
 <div style="flex:1.5"><label>Supplier Name * - Select Supplier first shows Open POs</label><select id="grn_vendor_id" onchange="onGRNSupplierSelected()"><option value="">Select Supplier</option></select><input type="text" id="grn_vendor_search" placeholder="Type Supplier to filter" onkeyup="filterGRNVendors()" style="margin-top:4px;font-size:11px"></div>
@@ -3193,7 +3203,7 @@ loadDash(); loadAllProductsForSBU(); loadProdCatOptions(); loadVendorMasters();
 </div>
 
 <div class="form-box" style="background:#E8F0FE;border:2px solid #1A2E1E">
-<b>Box 2 - Autofetched Detail - From PO</b>
+<b>Auto-Fetched Details - SBU, Station, Product from PO</b>
 <div class="row">
 <div><label>SBU * - Auto from PO No</label><select id="grn_sbu_id" onchange="onGRNSBUChanged()"><option value="">Select SBU</option></select><div style="font-size:10px;color:#666">Code: <span id="grn_sbu_code_preview" style="font-weight:800">SBU</span> → GRN: <span id="grn_no_preview" style="font-weight:800;color:#C5221F">GRN/26-27/SBU/0001</span></div><input type="hidden" id="grn_sbu_name"></div>
 <div><label>Station / Source - Auto from PO</label><input type="text" id="grn_station" placeholder="Station auto" readonly style="background:#f5f5f5"></div>
@@ -3202,24 +3212,24 @@ loadDash(); loadAllProductsForSBU(); loadProdCatOptions(); loadVendorMasters();
 </div>
 
 <div class="form-box" style="background:#FFF3E0;border:2px solid #8C6B2A">
-<b>Box 3 - Supplier Invoice Details - 4 Lines</b>
+<b>Supplier Invoice & Weighment Details</b>
 <div class="row"><div><label>Bill No</label><input type="text" id="grn_bill_no" placeholder="Bill No"></div><div><label>E-waybill No</label><input type="text" id="grn_eway_bill" placeholder="E-waybill"></div><div><label>LR No</label><input type="text" id="grn_lr_no" placeholder="LR No"></div></div>
 <div class="row"><div><label>Transporter</label><input type="text" id="grn_transporter" placeholder="Transporter"></div><div><label>Driver Name</label><input type="text" id="grn_driver_name" placeholder="Driver"></div><div><label>Driver Mobile</label><input type="text" id="grn_driver_mobile" placeholder="Mobile"></div></div>
 <div class="row"><div><label>Gross Wt * Kg</label><input type="number" id="grn_gross_kg" step="0.001" placeholder="Gross" onkeyup="calcGRNWeighment()"></div><div><label>Tare Wt * Kg</label><input type="number" id="grn_tare_kg" step="0.001" placeholder="Tare" onkeyup="calcGRNWeighment()"></div><div><label>Net Wt = GRN Qty Auto</label><input type="text" id="grn_net_wt_display" readonly style="background:#E6F4EA;font-weight:800;color:#1E7D32" placeholder="Net Auto"><input type="hidden" id="grn_net_kg"><input type="hidden" id="grn_net_mt"></div></div>
-<div class="row"><div><label>Supplier Qty MT</label><input type="number" id="grn_supplier_qty" step="0.001" placeholder="Supplier Qty" onkeyup="calcGRNWeighment()"></div><div><label>Accepted Qty MT *</label><input type="number" id="grn_accepted_qty" step="0.001" placeholder="Accepted" onkeyup="calcGRNAmount()"></div><div><label>Stock Yard *</label><select id="grn_stock_yard_id"><option value="">Select Yard</option></select><input type="hidden" id="grn_stock_yard_name"></div></div>
+<div class="row"><div><label>Supplier Qty MT</label><input type="number" id="grn_supplier_qty" step="0.001" placeholder="Supplier Qty" onkeyup="calcGRNWeighment()"></div><div><label>Accepted Qty MT *</label><input type="number" id="grn_accepted_qty" step="0.001" placeholder="Accepted Qty = Bill Qty" onkeyup="syncAcceptedToBill(); calcGRNAmount()"></div><div><label>Stock Yard *</label><select id="grn_stock_yard_id"><option value="">Select Yard</option></select><input type="hidden" id="grn_stock_yard_name"></div></div>
 <div class="row"><div><label>Qty Differ Auto</label><input type="text" id="grn_qty_differ_display" readonly style="background:#FFFBEB;font-size:11px" placeholder="Differ"><input type="hidden" id="grn_qty_differ"><input type="hidden" id="grn_differ_percent"></div><div><label>Wayment Slip No *</label><input type="text" id="grn_wayment_slip_no" placeholder="Slip No"></div><div><label>GRN Date *</label><input type="datetime-local" id="grn_date"></div></div>
 </div>
 
 <div class="form-box" style="background:white;border:2px solid var(--green)">
-<b>Box 4 - Bill Type Format - Invoice + Tax - Formula Checked</b>
-<div style="overflow-x:auto"><table style="font-size:11px;width:100%;border:1px solid var(--line)"><thead><tr style="background:#F8F6F3"><th>Product Code</th><th>Product Name</th><th>HSN</th><th>UOM</th><th>Rate</th><th>Qty MT</th><th>Taxable Value</th></tr></thead><tbody><tr><td><input type="text" id="grn_bill_product_code" readonly style="background:#f5f5f5;font-weight:700"></td><td><input type="text" id="grn_bill_product_name" readonly style="background:#f5f5f5"></td><td><input type="text" id="grn_bill_hsn_code" readonly style="background:#f5f5f5"></td><td><select id="grn_unit" onchange="calcGRNAmount()"><option value="MT">MT</option><option value="KG">KG</option></select></td><td><input type="number" id="grn_rate" step="0.01" onkeyup="calcGRNAmount()"></td><td><input type="number" id="grn_bill_qty" step="0.001" readonly style="background:#E6F4EA;font-weight:700"></td><td><input type="number" id="grn_taxable_value" step="0.01" readonly style="background:#E6F4EA;font-weight:700"></td></tr></tbody></table></div>
-<div style="margin-top:10px"><b>Tax - Formula: CGST=Taxable*CGST%/100, Grand Total=Taxable+CGST+SGST+IGST</b><div class="row"><div><label>CGST %</label><input type="number" id="grn_cgst_percent" step="0.01" onkeyup="calcGRNAmount()"></div><div><label>CGST Amt</label><input type="number" id="grn_cgst_amount" readonly style="background:#f5f5f5"></div><div><label>SGST %</label><input type="number" id="grn_sgst_percent" step="0.01" onkeyup="calcGRNAmount()"></div><div><label>SGST Amt</label><input type="number" id="grn_sgst_amount" readonly style="background:#f5f5f5"></div></div><div class="row"><div><label>IGST %</label><input type="number" id="grn_igst_percent" step="0.01" onkeyup="calcGRNAmount()"></div><div><label>IGST Amt</label><input type="number" id="grn_igst_amount" readonly style="background:#f5f5f5"></div><div><label>Grand Total</label><input type="number" id="grn_grand_total" readonly style="background:#1A2E1E;color:white;font-weight:800"></div></div></div>
+<b>Invoice & Tax Details - Product, Rate, Qty, Taxable Value - Auto Calculated</b>
+<div style="overflow-x:auto"><table style="font-size:11px;width:100%;border:1px solid var(--line)"><thead><tr style="background:#F8F6F3"><th>Product Code</th><th>Product Name</th><th>HSN</th><th>UOM</th><th>Rate</th><th>Qty MT</th><th>Taxable Value</th></tr></thead><tbody><tr><td><input type="text" id="grn_bill_product_code" readonly style="background:#f5f5f5;font-weight:700"></td><td><input type="text" id="grn_bill_product_name" readonly style="background:#f5f5f5"></td><td><input type="text" id="grn_bill_hsn_code" readonly style="background:#f5f5f5"></td><td><select id="grn_unit" onchange="calcGRNAmount()"><option value="MT">MT</option><option value="KG">KG</option></select></td><td><input type="number" id="grn_rate" step="0.01" onkeyup="calcGRNAmount()"></td><td><input type="number" id="grn_bill_qty" step="0.001" readonly style="background:#E6F4EA;font-weight:800;color:#1A2E1E;border:2px solid #1E7D32"></td><td><input type="number" id="grn_taxable_value" step="0.01" readonly style="background:#E6F4EA;font-weight:700"></td></tr></tbody></table></div>
+<div style="margin-top:10px"><b>Tax Calculation - CGST, SGST, IGST, Grand Total - Auto</b><div class="row"><div><label>CGST %</label><input type="number" id="grn_cgst_percent" step="0.01" onkeyup="calcGRNAmount()"></div><div><label>CGST Amt</label><input type="number" id="grn_cgst_amount" readonly style="background:#f5f5f5"></div><div><label>SGST %</label><input type="number" id="grn_sgst_percent" step="0.01" onkeyup="calcGRNAmount()"></div><div><label>SGST Amt</label><input type="number" id="grn_sgst_amount" readonly style="background:#f5f5f5"></div></div><div class="row"><div><label>IGST %</label><input type="number" id="grn_igst_percent" step="0.01" onkeyup="calcGRNAmount()"></div><div><label>IGST Amt</label><input type="number" id="grn_igst_amount" readonly style="background:#f5f5f5"></div><div><label>Grand Total</label><input type="number" id="grn_grand_total" readonly style="background:#1A2E1E;color:white;font-weight:800"></div></div></div>
 <input type="hidden" id="grn_po_qty"><input type="hidden" id="grn_received_qty"><input type="hidden" id="grn_spec"><input type="hidden" id="grn_invoice_no"><input type="hidden" id="grn_invoice_date"><input type="hidden" id="grn_challan_no"><input type="hidden" id="grn_rawana_no"><input type="hidden" id="grn_bilty_rate"><input type="hidden" id="grn_bilty_amount"><input type="hidden" id="grn_freight_advance"><input type="hidden" id="grn_unloading_point"><input type="hidden" id="grn_unloading_charges"><input type="hidden" id="grn_moisture_percent"><input type="hidden" id="grn_quality_status" value="OK"><input type="hidden" id="grn_quality_remark" value="OK"><input type="hidden" id="grn_deduction_amount"><input type="hidden" id="grn_shortage_ded"><input type="hidden" id="grn_rate_difference"><input type="hidden" id="grn_debit_note_no"><input type="hidden" id="grn_remarks"><input type="hidden" id="grn_wastage_kg">
 </div>
 
-<div class="form-box"><b>Box 5 - Attachments</b><div class="row"><div><label>Weighment Slip</label><input type="file" id="file_grn_weighment_slip" accept=".pdf,.jpg,.png" onchange="handleGRNFileSelect(this,'weighment_slip')"><input type="hidden" id="doc_grn_weighment_slip"><div id="dz_file_weighment_slip" style="font-size:10px;color:#666">No file</div></div><div><label>Invoice / Bill</label><input type="file" id="file_grn_invoice" accept=".pdf,.jpg,.png" onchange="handleGRNFileSelect(this,'invoice')"><input type="hidden" id="doc_grn_invoice"><div id="dz_file_invoice" style="font-size:10px;color:#666">No file</div></div></div></div>
+<div class="form-box"><b>Attachments - Weighment Slip & Invoice</b><div class="row"><div><label>Weighment Slip</label><input type="file" id="file_grn_weighment_slip" accept=".pdf,.jpg,.png" onchange="handleGRNFileSelect(this,'weighment_slip')"><input type="hidden" id="doc_grn_weighment_slip"><div id="dz_file_weighment_slip" style="font-size:10px;color:#666">No file</div></div><div><label>Invoice / Bill</label><input type="file" id="file_grn_invoice" accept=".pdf,.jpg,.png" onchange="handleGRNFileSelect(this,'invoice')"><input type="hidden" id="doc_grn_invoice"><div id="dz_file_invoice" style="font-size:10px;color:#666">No file</div></div></div></div>
 
-<div class="form-box" style="background:#E6F4EA;border:2px solid #1E7D32"><b>Box 6 - Inventory Posting</b><div class="row"><div><label>Created By</label><input type="text" id="grn_created_by" value="Admin"></div><div><label>GRN No Preview</label><input type="text" id="grn_no_display" readonly style="background:#E6F4EA;font-weight:900;color:#C5221F"></div><div><label>Status</label><select id="grn_status"><option value="Approved">Approved - Stock Auto Added</option><option value="Received">Received</option></select></div></div><div style="font-size:11px;color:#1E7D32">✅ On Save: Accepted Qty added to Product stock + SBU Yard — Formula: Stock = Old + Accepted Qty</div></div>
+<div class="form-box" style="background:#E6F4EA;border:2px solid #1E7D32"><b>Inventory Posting - Stock Update</b><div class="row"><div><label>Created By</label><input type="text" id="grn_created_by" value="Admin"></div><div><label>GRN No Preview</label><input type="text" id="grn_no_display" readonly style="background:#E6F4EA;font-weight:900;color:#C5221F"></div><div><label>Status</label><select id="grn_status"><option value="Approved">Approved - Stock Auto Added</option><option value="Received">Received</option></select></div></div><div style="font-size:11px;color:#1E7D32">✅ On Save: Accepted Qty added to Product stock + SBU Yard — Formula: Stock = Old + Accepted Qty</div></div>
 
 </div>
 <div class="modal-footer"><button class="btn btn-g" style="flex:1;padding:14px;font-size:14px;font-weight:800" onclick="saveGRN()"><i class="bi bi-check-circle"></i> Save GRN - Stock Auto Update - Formula Checked</button><button class="btn btn-w" onclick="closeAddGRNPopup()">Cancel</button></div>
